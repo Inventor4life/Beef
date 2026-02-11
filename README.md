@@ -5,8 +5,8 @@ Beef is a discord clone created for WSU's Cpts 322 (Software Engineering I) cour
  
 ## The Name
 There are a handful of reasons why "Beef" was chosen as our project name. The first and foremost being that this is a student project and is not meant to compete with real products.
- As such, we decided that an unappealing parody name would be appropriate. Second, having a parody name such as "Beef" allows us to give cow-related themes to our features: Th
-
+ As such, we decided that an unappealing parody name would be appropriate. Second, having a parody name such as "Beef" allows us to give cow-related themes to certain features.
+ While we won't go so far as to call servers "Herds", we may implement small things such as using "Rare" and "Well Done" as our light/dark mode themes.
 
 ## Directory Structure
 `infra/` contains information and configurations related to our infrastructure; committing this to public source control carries significant security risks, and our reasons for doing so are discussed in the [Infrastructure](#infrastructure) section.
