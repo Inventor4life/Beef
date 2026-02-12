@@ -1,0 +1,7 @@
+# Rather than ignoring specific extensions, ignore all but explicitly allowed files.
+# This will be used until bootstrapping is finished (and we know definitively what files to ignore).
+
+*
+!.gitignore
+
+!main.tf
