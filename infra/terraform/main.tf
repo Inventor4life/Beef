@@ -30,7 +30,7 @@ data "local_file" "ssh_public_key" {
 resource "proxmox_virtual_environment_file" "wg_user_data_cloud_config" {
   content_type = "snippets"
   datastore_id = "local"
-  node_name    = "pve"
+  node_name    = "minic"
 
   source_raw {
     data = <<-EOF
