@@ -13,10 +13,6 @@ terraform {
       source  = "hashicorp/local"
       version = "2.7.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "3.8.1"
-    }
   }
 }
 
@@ -104,15 +100,4 @@ resource "proxmox_virtual_environment_vm" "wg_host" {
   lifecycle {
     prevent_destroy = true
   }
-}
-
-resource "random_password" "wg_host_password" {
-  length           = 16
-  override_special = "_%@"
-  special          = true
-}
-
-output "wg_host_password" {
-  value     = random_password.wg_host_password.result
-  sensitive = true
 }
