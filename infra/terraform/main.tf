@@ -23,7 +23,7 @@ provider "proxmox" {
   password = var.virtual_environment_password
 }
 
-data "local_file" "ssh_public_key" {
+data "local_file" "wg_public_key" {
   filename = "./wg_ed25519.pub"
 }
 
@@ -43,7 +43,7 @@ resource "proxmox_virtual_environment_file" "wg_user_data_cloud_config" {
           - sudo
         shell: /bin/bash
         ssh_authorized_keys:
-          - ${trimspace(data.local_file.ssh_public_key.content)}
+          - ${trimspace(data.local_file.wg_public_key.content)}
         sudo: ALL=(ALL) NOPASSWD:ALL
     package_update: true
     packages:
