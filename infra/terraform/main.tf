@@ -28,7 +28,7 @@ provider "proxmox" {
 }
 
 data "local_file" "ssh_public_key" {
-  filename = "./wg_rsa.pub"
+  filename = "./wg_ed25519.pub"
 }
 
 resource "proxmox_virtual_environment_file" "wg_user_data_cloud_config" {
