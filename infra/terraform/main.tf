@@ -39,7 +39,7 @@ resource "proxmox_virtual_environment_file" "wg_user_data_cloud_config" {
   source_raw {
     data = <<-EOF
     #cloud-config
-    hostname: test-ubuntu
+    hostname: wg-host
     timezone: America/Toronto
     users:
       - name: ${var.wg_host_default_username}
