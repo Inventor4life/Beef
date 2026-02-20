@@ -1,15 +1,118 @@
+# steps followed from 
+# https://registry.terraform.io/providers/bpg/proxmox/latest/docs/guides/clone-vm
+
+# TODO: Modularize this file once we can confirm that it works.
+
 terraform {
   required_providers {
-     proxmox = {
+    proxmox = {
       source = "bpg/proxmox"
-      version = "0.95.1-rc1"
+      version = "0.96.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "2.7.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "3.8.1"
     }
   }
 }
 
 provider "proxmox" {
   insecure = true # Temporary while we bootstrap the system. Remove once a CA is created.
-  endpoint = vars.virtual_environment_endpoint
-  username = vars.virtual_environment_username
-  password = vars.virtual_environment_password
+  endpoint = var.virtual_environment_endpoint
+  username = var.virtual_environment_username
+  password = var.virtual_environment_password
+}
+
+data "local_file" "ssh_public_key" {
+  filename = "./wg_rsa.pub"
+}
+
+resource "proxmox_virtual_environment_file" "wg_user_data_cloud_config" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "pve"
+
+  source_raw {
+    data = <<-EOF
+    #cloud-config
+    hostname: test-ubuntu
+    timezone: America/Toronto
+    users:
+      - name: ${var.wg_host_default_username}
+        groups:
+          - sudo
+        shell: /bin/bash
+        ssh_authorized_keys:
+          - ${trimspace(data.local_file.ssh_public_key.content)}
+        sudo: ALL=(ALL) NOPASSWD:ALL
+    package_update: true
+    packages:
+      - qemu-guest-agent
+      - net-tools
+      - curl
+    runcmd:
+      - systemctl enable qemu-guest-agent
+      - systemctl start qemu-guest-agent
+      - echo "done" > /tmp/cloud-config.done
+    EOF
+
+    file_name = "user-data-cloud-config.yaml"
+  }
+}
+
+resource "proxmox_virtual_environment_vm" "wg_host" {
+  name        = "wg-host"
+  description = "Wireguard host, managed by terraform"
+  tags        = ["terraform", "ubuntu"]
+  
+  node_name = "minic"
+  vm_id     = 104
+  
+  clone {
+    vm_id = 9000 # Non-terraform-managed ubuntu cloud image
+  }
+  
+  agent {
+    enabled = true
+  }
+  
+  memory {
+    dedicated = 4096 # MB
+  }
+  
+  initialization {
+  
+    ip_config {
+      ipv4 {
+        address = "10.0.0.4/16"
+        gateway = "10.0.0.1"
+      }
+    }
+    
+    user_data_file_id = proxmox_virtual_environment_file.wg_user_data_cloud_config.id
+  }
+  
+  disk {
+    interface = "scsi1"
+    size = 4
+  }
+  
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "random_password" "wg_host_password" {
+  length           = 16
+  override_special = "_%@"
+  special          = true
+}
+
+output "wg_host_password" {
+  value     = random_password.wg_host_password.result
+  sensitive = true
 }

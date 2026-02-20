@@ -3,5 +3,8 @@
 
 *
 !.gitignore
+!README.md
 
 !main.tf
+!variables.tf
+!.terraform.lock.hcl
