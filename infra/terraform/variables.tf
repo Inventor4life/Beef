@@ -6,7 +6,7 @@ variable "virtual_environment_endpoint" {
 
 variable "virtual_environment_username" {
   type        = string
-  description = "Username for terraform's proxmox management account"
+  description = "Username for terraform's proxmox management account, excluding realm"
   sensitive   = true
 }
 

@@ -19,7 +19,7 @@ terraform {
 provider "proxmox" {
   insecure = true # Temporary while we bootstrap the system. Remove once a CA is created.
   endpoint = var.virtual_environment_endpoint
-  username = var.virtual_environment_username
+  username = "${var.virtual_environment_username}@pve"
   password = var.virtual_environment_password
   
   ssh {
