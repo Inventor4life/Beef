@@ -21,3 +21,9 @@ variable "wg_host_default_username" {
   description = "The default account username for the wireguard host"
   sensitive   = true
 }
+
+variable "db_host_default_username" {
+  type        = string
+  description = "The default account username for our mongodb host"
+  sensitive   = true
+}
