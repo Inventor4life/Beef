@@ -21,6 +21,14 @@ provider "proxmox" {
   endpoint = var.virtual_environment_endpoint
   username = var.virtual_environment_username
   password = var.virtual_environment_password
+  
+  ssh {
+    agent       = false
+    username    = var.virtual_environment_username
+    
+    # fileexists to suppress terraform validate missing file warnings
+    private_key = fileexists("~/.ssh/pve/pve_ed25519") ? file("~/.ssh/pve/pve_ed25519") : "default" 
+  }
 }
 
 data "local_file" "wg_public_key" {
