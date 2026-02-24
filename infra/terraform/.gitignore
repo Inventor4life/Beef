@@ -1,0 +1,10 @@
+# Rather than ignoring specific extensions, ignore all but explicitly allowed files.
+# This will be used until bootstrapping is finished (and we know definitively what files to ignore).
+
+*
+!.gitignore
+!README.md
+
+!main.tf
+!variables.tf
+!.terraform.lock.hcl
