@@ -234,14 +234,14 @@ resource "proxmox_virtual_environment_file" "prod_cloud_config" {
           - sudo
         shell: /bin/bash
         ssh_authorized_keys:
-          - ${trimspace(fileexists("~/Beef/infra/terraform/dev1_ed25519.pub") ? file("~/Beef/infra/terraform/dev2_ed25519.pub") : "default")}
+          - ${trimspace(fileexists("~/Beef/infra/terraform/dev2_ed25519.pub") ? file("~/Beef/infra/terraform/dev2_ed25519.pub") : "default")}
         sudo: ALL=(ALL) NOPASSWD:ALL
       - name: ${var.dev3_username}
         groups:
           - sudo
         shell: /bin/bash
         ssh_authorized_keys:
-          - ${trimspace(fileexists("~/Beef/infra/terraform/dev1_ed25519.pub") ? file("~/Beef/infra/terraform/dev3_ed25519.pub") : "default")}
+          - ${trimspace(fileexists("~/Beef/infra/terraform/dev3_ed25519.pub") ? file("~/Beef/infra/terraform/dev3_ed25519.pub") : "default")}
         sudo: ALL=(ALL) NOPASSWD:ALL      
     package_update: true
     packages:
