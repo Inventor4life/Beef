@@ -161,7 +161,7 @@ resource "proxmox_virtual_environment_file" "db_user_data_cloud_config" {
 
 resource "proxmox_virtual_environment_vm" "db_host" {
   name        = "db-host"
-  description = "Wireguard host, managed by terraform"
+  description = "Database host, managed by terraform"
   tags        = ["terraform", "ubuntu", "database"]
   migrate     = true
   
