@@ -206,3 +206,102 @@ resource "proxmox_virtual_environment_vm" "db_host" {
 #
 # END database CONFIGURATION
 #
+
+#
+# BEGIN production CONFIGURATION
+#
+
+resource "proxmox_virtual_environment_file" "prod_cloud_config" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "minic"
+
+  source_raw {
+    data = <<-EOF
+    #cloud-config
+    hostname: prod
+    timezone: America/Los_Angeles
+    users:
+      - name: ${var.dev1_username}
+        groups:
+          - sudo
+        shell: /bin/bash
+        ssh_authorized_keys:
+          - ${trimspace(fileexists("~/Beef/infra/terraform/dev1_ed25519.pub") ? file("~/Beef/infra/terraform/dev1_ed25519.pub") : "default")}
+        sudo: ALL=(ALL) NOPASSWD:ALL
+      - name: ${var.dev2_username}
+        groups:
+          - sudo
+        shell: /bin/bash
+        ssh_authorized_keys:
+          - ${trimspace(fileexists("~/Beef/infra/terraform/dev1_ed25519.pub") ? file("~/Beef/infra/terraform/dev2_ed25519.pub") : "default")}
+        sudo: ALL=(ALL) NOPASSWD:ALL
+      - name: ${var.dev3_username}
+        groups:
+          - sudo
+        shell: /bin/bash
+        ssh_authorized_keys:
+          - ${trimspace(fileexists("~/Beef/infra/terraform/dev1_ed25519.pub") ? file("~/Beef/infra/terraform/dev3_ed25519.pub") : "default")}
+        sudo: ALL=(ALL) NOPASSWD:ALL      
+    package_update: true
+    packages:
+      - qemu-guest-agent
+      - net-tools
+      - curl
+    runcmd:
+      - systemctl enable qemu-guest-agent
+      - systemctl start qemu-guest-agent
+      - echo "done" > /tmp/cloud-config.done
+    EOF
+
+    file_name = "db-user-data-cloud-config.yaml"
+  }
+}
+
+resource "proxmox_virtual_environment_vm" "prod" {
+  name        = "prod"
+  description = "Production VM, managed by terraform"
+  tags        = ["terraform", "ubuntu", "production"]
+  migrate     = true
+  
+  node_name = "minic"
+  vm_id     = 106
+  
+  clone {
+    vm_id = 9000 # Non-terraform-managed ubuntu cloud image
+  }
+  
+  agent {
+    enabled = true
+  }
+  
+  memory {
+    dedicated = 2048 # MB
+    floating  = 2048 # MB
+  }
+  
+  initialization {
+  
+    ip_config {
+      ipv4 {
+        address = "10.0.0.6/16"
+        gateway = "10.0.0.1"
+      }
+    }
+    
+    user_data_file_id = proxmox_virtual_environment_file.prod_cloud_config.id
+  }
+  
+  disk {
+    interface = "scsi1"
+    size = 16
+  }
+  
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+#
+# END production CONFIGURATION
+#

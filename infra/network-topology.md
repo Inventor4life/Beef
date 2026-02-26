@@ -47,8 +47,9 @@ The following VMs are present (with description), listed by host:
 ```
 10.0.0.1: Opnsense     - Firewall, wireguard
 10.0.0.3: Inframanager - Terraform host
-10.0.0.4: wg-host      - (in development) future wireguard host
-10.0.0.5: mongodb      - (in development) future database host 
+10.0.0.4: wg-host      - (in development) Cloudflare tunnel host
+10.0.0.5: mongodb      - (in development) future database host
+10.0.0.6: production   - (in development) production website
 ```
 
 ## VPN Clients
