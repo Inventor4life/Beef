@@ -4,7 +4,7 @@ import type {Request, Response, NextFunction} from "express";
 const app = express();
 app.use(express.json())
 
-process.title = "first-service"; // Set name for easy process killing
+process.title = ""; // Set no name, server-start.sh sets one for us.
 
 let HOST: string;
 let PORT: number;
