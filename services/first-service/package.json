@@ -1,0 +1,17 @@
+{
+  "name": "first-service",
+  "version": "1.0.0",
+  "description": "A test service to get experience for future services. May eventually become a service template",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "build/main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.2",
+    "express": "^5.2.1"
+  }
+}
