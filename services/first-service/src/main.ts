@@ -4,6 +4,8 @@ import type {Request, Response, NextFunction} from "express";
 const app = express();
 app.use(express.json())
 
+process.title = "first-service"; // Set name for easy process killing
+
 let HOST: string;
 let PORT: number;
 if(process.env.PRODUCTION === undefined) {
@@ -24,6 +26,10 @@ app.get('/auth', (req: Request, res: Response) => {
 	res.send("Welcome to the Auth endpoint");
 })
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
     console.log(`Server is running on ${HOST}:${PORT}`);
 });
+
+process.on('SIGTERM', () => {
+	server.close();
+})
