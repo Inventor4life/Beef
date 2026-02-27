@@ -8,14 +8,20 @@ process.title = ""; // Set no name, server-start.sh sets one for us.
 
 let HOST: string;
 let PORT: number;
-if(process.env.PRODUCTION === undefined) {
-	console.log("Not in production");
-	HOST = "127.0.0.1";
-	PORT = 3000;
-} else {
-	console.log("In production");
-	HOST = "10.0.0.6";
-	PORT = 3000;
+switch(process.env.APP_ENV) {
+	case "PRODUCTION":
+		console.log("Started as Production");
+		HOST = "10.0.0.6";
+		PORT = 3000;
+	break;
+	case "DEVELOPMENT":	
+		console.log("Started as Development");
+		HOST = "127.0.0.1";
+		PORT = 3000;
+	break;
+	default:
+		console.log(`Unknown environment ${process.env.APP_ENV}`);
+		process.exit(1)
 };
 
 app.get('/', (req: Request, res: Response) => {
