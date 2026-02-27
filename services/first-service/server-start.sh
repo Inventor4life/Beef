@@ -1,7 +1,22 @@
 #!/bin/bash
 repo_directory=$(git rev-parse --show-toplevel)
-echo "Repo directory is ${repo_directory}. Starting first-service"
 cd ${repo_directory}/services/first-service
+
+if [ "$#" -ne 1 ]; then
+	echo "Usage: ./first-service.sh <environment name>"
+	exit
+elif [[ $1 == "prod" ]]; then
+	echo "Starting as production"
+	export APP_ENV="PRODUCTION"
+elif [[ $1 == "dev" ]]; then
+	echo "Starting in development"
+	export APP_ENV="DEVELOPMENT"
+else
+	echo "Current environments are 'prod' and 'dev'"
+	exit
+fi
+
+echo "Starting first-service with environment ${APP_ENV}"
 
 # Starts main.js under the name "first-service". Redirects all output
 #  to output.log and then resumes execution
