@@ -2,7 +2,6 @@ import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import type { JwtPayload, VerifyOptions } from "jsonwebtoken";
 
-const _authJwtSecret: string = process.env.JWT_SECRET!; // sha256 of SuperSecretAuthKey
 const options: VerifyOptions = {
   issuer: "myAuthService",
   audience: "beef",
@@ -17,7 +16,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
         return;
     }
     try {
-        const decoded = jwt.verify(token, _authJwtSecret, options);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!, options);
         res.locals.user = decoded as JwtPayload;
         next();
     } catch (err) {

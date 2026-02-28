@@ -7,9 +7,14 @@ import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import path from "path";
 import { requireAuth } from "./middleware.js";
-
+import { connectToDb, closeDb } from "./db.js";
+import https from "https";
+import fs from "fs";
 
 dotenv.config();
+
+const key = fs.readFileSync("./certs/authkey.pem");
+const cert = fs.readFileSync("./certs/authcert.pem");
 
 const app = express();
 app.use(express.json())
@@ -49,6 +54,10 @@ if(process.env.PRODUCTION === undefined) {
 
 app.get('/', (req: Request, res: Response) => {
     res.send("Typescript with express!");
+});
+
+app.get('/test-auth', requireAuth, (req: Request, res: Response) => {
+	res.json({ user: res.locals.user });
 });
 
 app.get('/auth', (req: Request, res: Response) => {
@@ -98,10 +107,13 @@ app.post('/auth', async (req: Request, res: Response) => {
   res.redirect("/");
 });
 
-const server = app.listen(PORT, HOST, () => {
-    console.log(`Server is running on ${HOST}:${PORT}`);
+const server = await connectToDb().then(() => {
+	return https.createServer({key, cert}, app).listen(PORT, HOST, () => {
+		console.log(`Server running at https://${HOST}:${PORT}/`);
+	});
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
 	server.close();
+	await closeDb();
 })
