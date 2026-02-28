@@ -1,0 +1,1 @@
+// Should probably move auth from main.ts to this file, but I forgot to when making it so we should do it later.    
