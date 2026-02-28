@@ -16,3 +16,6 @@ This method has not been tested on linux. However, `openssl` is available on lin
 ## Dev Certificates
 |Certificate Name| Common Name |
 |----------------|-------------|
+|  `devcert1.crt`|  `localhost`|
+|  `devcert2.crt`|  `localhost`|
+|  `devcert3.crt`|  `localhost`|
