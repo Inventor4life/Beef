@@ -64,6 +64,9 @@ switch(process.env.APP_ENV) {
 		process.exit(1)
 };
 
+const indexPageTemplate = fs.readFileSync(path.resolve(PATH_THIS_FILE,"../data/index.html"), {encoding: "utf-8"});
+const indexPage = indexPageTemplate.replaceAll(/[{]{2}\s*CLIENT_ID\s*[}]{2}/g, CLIENT_ID);
+
 app.get('/', (req: Request, res: Response) => {
     res.send("Typescript with express!");
 });
@@ -73,7 +76,7 @@ app.get('/test-auth', requireAuth, (req: Request, res: Response) => {
 });
 
 app.get('/auth', (req: Request, res: Response) => {
-	res.sendFile("./data/index.html", {root: path.resolve(PATH_THIS_FILE, "../")});
+	res.send(indexPage);
 });
 
 app.post('/auth', async (req: Request, res: Response) => {
