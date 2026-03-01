@@ -1,0 +1,1 @@
+While currently there exists no License on Beef as it is not a public repository, in the future we plan to include the MIT license.
