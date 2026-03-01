@@ -18,6 +18,7 @@ fi
 
 echo "Starting first-service with environment ${APP_ENV}"
 
-# Starts main.js under the name "first-service". Redirects all output
+# Starts main.js, which sets its own name to "first-service". Redirects all output
 #  to output.log and then resumes execution
-exec -a first-service node build/main.js -- > output.log &
+# We will need to change the < /dev/null portion later if we wish to provide command line input to the running process
+setsid node build/main.js > output.log 2>&1 < /dev/null &

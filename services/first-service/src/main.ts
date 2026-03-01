@@ -11,6 +11,12 @@ import { connectToDb, closeDb } from "./db.js";
 import https from "https";
 import fs from "fs";
 
+// I would rather the process title be set in the startup script, but we haven't gotten that working reliably.
+// My gut says this service should have little to no concept of what the process title is, because it doesn't yet need
+//  to know or change it outside of this bug fix. Because the process name is needed by the status and stop scripts,
+//  ideally it should be created by the startup script so we can package/reuse the scripts for other services.
+// Currently we have to rely on setting the process title here and hoping that it matches the status and stop scripts.
+process.title = "first-service"
 dotenv.config();
 
 const app = express();
@@ -37,8 +43,6 @@ const options: SignOptions = {
 
 // Generic runtime parameters
 const PATH_THIS_FILE = import.meta.dirname;
-
-process.title = ""; // Set no name, server-start.sh sets one for us.
 
 let HOST: string;
 let PORT: number;
