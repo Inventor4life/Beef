@@ -13,9 +13,6 @@ import fs from "fs";
 
 dotenv.config();
 
-const key = fs.readFileSync("./certs/authkey.pem");
-const cert = fs.readFileSync("./certs/authcert.pem");
-
 const app = express();
 app.use(express.json())
 app.use(cookieParser());
@@ -38,20 +35,29 @@ const options: SignOptions = {
   expiresIn: Number(process.env.JWT_EXPIRY) // in seconds.
 }
 
+// Generic runtime parameters
+const PATH_THIS_FILE = import.meta.dirname;
+
 process.title = ""; // Set no name, server-start.sh sets one for us.
 
 let HOST: string;
 let PORT: number;
+let key;
+let cert;
 switch(process.env.APP_ENV) {
 	case "PRODUCTION":
 		console.log("Started as Production");
 		HOST = "10.0.0.6";
 		PORT = 3000;
+    key = fs.readFileSync("/prod/certs/first-service.key"); // /services/first-service/src/main.ts -> /tools/dev-certs/devcert1.key
+    cert = fs.readFileSync("/prod/certs/first-service.crt");
 	break;
 	case "DEVELOPMENT":	
 		console.log("Started as Development");
 		HOST = "127.0.0.1";
 		PORT = 3000;
+    key = fs.readFileSync(path.resolve(PATH_THIS_FILE, "../../../tools/dev-certs/devcert1.key")); // /services/first-service/src/main.ts -> /tools/dev-certs/devcert1.key
+    cert = fs.readFileSync(path.resolve(PATH_THIS_FILE, "../../../tools/dev-certs/devcert1.crt"));
 	break;
 	default:
 		console.log(`Unknown environment ${process.env.APP_ENV}`);
@@ -67,7 +73,7 @@ app.get('/test-auth', requireAuth, (req: Request, res: Response) => {
 });
 
 app.get('/auth', (req: Request, res: Response) => {
-	res.sendFile("./data/index.html", {root: path.resolve(import.meta.dirname, "../")});
+	res.sendFile("./data/index.html", {root: path.resolve(PATH_THIS_FILE, "../")});
 });
 
 app.post('/auth', async (req: Request, res: Response) => {
