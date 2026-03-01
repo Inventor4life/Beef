@@ -35,3 +35,6 @@ Despite the security risk involved in publically committing this information, we
 5. All API keys are for free services only, time limited, and scoped to only the necessary permissions for our service to function.
 
 6. All passwords used in the infrastructure are randomly generated, and no passwords are reused (even within the infrastructure).
+
+## Development flow
+No commits can be made directly to `main`. All changes must be committed to another branch, a pull request must be opened, and the pull request should be reviewed by another developer before changes are made to `main`.

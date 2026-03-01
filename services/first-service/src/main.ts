@@ -68,6 +68,11 @@ switch(process.env.APP_ENV) {
 		process.exit(1)
 };
 
+const LOGIN_URI = process.env.LOGIN_URI!;
+const indexPageTemplate = fs.readFileSync(path.resolve(PATH_THIS_FILE,"../data/index.html"), {encoding: "utf-8"});
+const indexPage = indexPageTemplate.replaceAll(/[{]{2}\s*CLIENT_ID\s*[}]{2}/g, CLIENT_ID)
+                                   .replaceAll(/[{]{2}\s*LOGIN_URI\s*[}]{2}/g, LOGIN_URI);
+
 app.get('/', (req: Request, res: Response) => {
     res.send("Typescript with express!");
 });
