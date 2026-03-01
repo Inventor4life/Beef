@@ -82,7 +82,7 @@ app.get('/test-auth', requireAuth, (req: Request, res: Response) => {
 });
 
 app.get('/auth', (req: Request, res: Response) => {
-	res.sendFile("./data/index.html", {root: path.resolve(PATH_THIS_FILE, "../")});
+	res.send(indexPage);
 });
 
 app.post('/auth', async (req: Request, res: Response) => {
