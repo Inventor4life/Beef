@@ -10,6 +10,7 @@ import { requireAuth } from "./middleware.js";
 import { connectToDb, closeDb } from "./db.js";
 import https from "https";
 import fs from "fs";
+import messageRoutes from "./messages.js";
 
 // I would rather the process title be set in the startup script, but we haven't gotten that working reliably.
 // My gut says this service should have little to no concept of what the process title is, because it doesn't yet need
@@ -23,6 +24,7 @@ const app = express();
 app.use(express.json())
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true })); // parse URL-encoded bodies for google
+app.use(messageRoutes); // use the message routes defined in messages.ts
 
 // Google JWT verification
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
