@@ -1,25 +1,393 @@
-<!DOCTYPE HTML>
-<html>
-<head>
-<script src="https://accounts.google.com/gsi/client" async defer></script
-</head>
-<body>
-temp
-<div id="g_id_onload"
-     data-client_id="{{ CLIENT_ID }}"
-     data-context="use"
-     data-ux_mode="popup"
-     data-login_uri="{{ LOGIN_URI }}"
-     data-auto_prompt="false">
-</div>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Beef</title>
 
-<div class="g_id_signin"
-     data-type="standard"
-     data-shape="pill"
-     data-theme="filled_black"
-     data-text="continue_with"
-     data-size="large"
-     data-logo_alignment="left">
-</div>
-</body>
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #0b0b0f; color: #f5f5f7; }
+      .wrap { max-width: 880px; margin: 0 auto; padding: 28px 18px; }
+      .card { background: #141420; border: 1px solid #26263a; border-radius: 16px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      .muted { color: #b9b9c6; font-size: 14px; }
+      .spacer { height: 14px; }
+      input, button, textarea {
+        font: inherit;
+        border-radius: 12px;
+        border: 1px solid #2a2a40;
+        background: #10101a;
+        color: #f5f5f7;
+        padding: 10px 12px;
+      }
+      button { cursor: pointer; }
+      button:hover { filter: brightness(1.08); }
+      .pill { display: inline-block; padding: 5px 10px; border-radius: 999px; border: 1px solid #2a2a40; background: #10101a; font-size: 12px; color: #cfcfe6; }
+      .list { margin: 0; padding: 0; list-style: none; }
+      .item { padding: 10px 12px; border: 1px solid #26263a; background: #10101a; border-radius: 12px; margin-bottom: 10px; }
+      .error { color: #ffb3b3; }
+      a { color: #a7c5ff; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .footer { margin-top: 14px; font-size: 12px; color: #9a9ab2; }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+
+    <script type="module">
+      import React, { useEffect, useMemo, useRef, useState } from "https://esm.sh/react@18.2.0";
+      import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
+      import htm from "https://esm.sh/htm@3.1.1";
+      const html = htm.bind(React.createElement);
+
+      // Injected by your server (main.ts replaces {{ CLIENT_ID }})
+      const GOOGLE_CLIENT_ID = "{{ CLIENT_ID }}";
+
+      // Always post back to this server (same-origin) so cookies/SameSite=Strict work
+      const AUTH_POST_URL = new URL("/auth", window.location.origin).toString();
+
+      function getCookie(name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = document.cookie.match(new RegExp("(^|;\\s*)" + escaped + "=([^;]*)"));
+  return m ? decodeURIComponent(m[2]) : "";
+}
+
+      function setCookie(name, value, opts = {}) {
+        const parts = [
+          `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+          `Path=/`,
+          `SameSite=Strict`,
+          `Secure`,
+        ];
+        if (opts.maxAgeSec) parts.push(`Max-Age=${opts.maxAgeSec}`);
+        document.cookie = parts.join("; ");
+      }
+
+      function ensureCsrfToken() {
+        // Your server checks: cookie g_csrf_token === body g_csrf_token
+        // If GIS didn't set it (we're using callback mode), we set our own.
+        let t = getCookie("g_csrf_token");
+        if (!t) {
+          const bytes = new Uint8Array(16);
+          crypto.getRandomValues(bytes);
+          t = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+          setCookie("g_csrf_token", t, { maxAgeSec: 10 * 60 });
+        }
+        return t;
+      }
+
+      async function waitForGIS(timeoutMs = 8000) {
+        const start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+          if (window.google?.accounts?.id) return;
+          await new Promise(r => setTimeout(r, 50));
+        }
+        throw new Error("Google Identity Services failed to load.");
+      }
+
+      async function postIdTokenToServer(idTokenJwt) {
+        const csrf = ensureCsrfToken();
+        const body = new URLSearchParams({
+          credential: idTokenJwt,
+          g_csrf_token: csrf,
+        });
+
+        const res = await fetch(AUTH_POST_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+          credentials: "include",
+          redirect: "follow",
+        });
+
+        // Even though your server redirects to "/", cookies are still set on the 302 response.
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          throw new Error(`Auth POST failed (${res.status}). ${txt}`.trim());
+        }
+      }
+
+      async function fetchMe() {
+        const res = await fetch("/test-auth", { credentials: "include" });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.user ?? null;
+      }
+      async function apiGetMessages() {
+          const res = await fetch("/messages", { credentials: "include" });
+          if (res.status === 401) return null;
+          if (!res.ok) throw new Error(`GET /messages failed (${res.status})`);
+          const data = await res.json();
+          return Array.isArray(data) ? data : [];
+      }
+      async function apiPostMessage(content) {
+          const res = await fetch("/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ content }), // IMPORTANT: backend expects { content }
+          });
+          if (res.status === 401) return null;
+          if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`POST /messages failed (${res.status}). ${t}`.trim());
+          }
+          return await res.json(); // {id, author, content}
+      }
+
+      function getRoute() {
+        const h = window.location.hash || "#/login";
+        if (h.startsWith("#/messages")) return "messages";
+        return "login";
+      }
+
+      function App() {
+        const [route, setRoute] = useState(getRoute());
+        const [user, setUser] = useState(null);
+        const [status, setStatus] = useState({ kind: "idle", msg: "" });
+
+        useEffect(() => {
+          const onHash = () => setRoute(getRoute());
+          window.addEventListener("hashchange", onHash);
+          return () => window.removeEventListener("hashchange", onHash);
+        }, []);
+
+        useEffect(() => {
+          // If already signed in (cookie exists), jump to messages.
+          (async () => {
+            const me = await fetchMe();
+            if (me) {
+              setUser(me);
+              window.location.hash = "#/messages";
+            }
+          })();
+        }, []);
+
+        return html`
+          <div className="wrap">
+            <div className="card">
+              <div className="row" style=${{ justifyContent: "space-between" }}>
+                <div>
+                  <h1>Beef</h1>
+                  <div className="muted">${route === "login" ? "Google OIDC sign-in" : "Messages"}</div>
+                </div>
+                <span className="pill">${route === "messages" ? "Messages" : "Login"}</span>
+              </div>
+
+              <div className="spacer"></div>
+
+              ${status.kind === "error" && html`<div className="error">${status.msg}</div>`}
+
+          ${route === "login"
+               ? html`<${LoginPage}
+                    onAuthed=${async () => {
+                         const me = await fetchMe();
+                         if (me) setUser(me);
+                         window.location.hash = "#/messages";
+                     }}
+                     setStatus=${setStatus}
+                    />`
+               : html`<${MessagesPage} user=${user} setUser=${setUser} setStatus=${setStatus} />`
+          }
+
+              ${route === "login" && html`
+                <div className="footer">
+                  Click 'log in with google' and sign in with your google account to access Beef services.
+                </div>
+               `}
+            </div>
+          </div>
+        `;
+      }
+
+      function LoginPage({ onAuthed, setStatus }) {
+        const btnRef = useRef(null);
+
+        useEffect(() => {
+          let cancelled = false;
+
+          (async () => {
+            try {
+              setStatus({ kind: "idle", msg: "" });
+              await waitForGIS();
+
+              if (cancelled) return;
+
+              window.google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                ux_mode: "popup",
+                auto_select: false,
+                callback: async (resp) => {
+                  try {
+                    setStatus({ kind: "idle", msg: "" });
+                    await postIdTokenToServer(resp.credential);
+                    await onAuthed();
+                  } catch (e) {
+                    setStatus({ kind: "error", msg: e?.message ?? String(e) });
+                  }
+                },
+              });
+
+              // Render the Google button
+              window.google.accounts.id.renderButton(btnRef.current, {
+                type: "standard",
+                theme: "filled_black",
+                size: "large",
+                text: "continue_with",
+                shape: "pill",
+                logo_alignment: "left",
+              });
+            } catch (e) {
+              setStatus({ kind: "error", msg: e?.message ?? String(e) });
+            }
+          })();
+
+          return () => { cancelled = true; };
+        }, []);
+
+        return html`
+          <div>
+            <div className="muted">
+              Sign in with Google. After success, the server sets an HTTP-only <code>user_token</code> cookie, then we navigate to Messages.
+            </div>
+            <div className="spacer"></div>
+            <div ref=${btnRef}></div>
+            <div className="spacer"></div>
+            <div className="muted">
+              
+            </div>
+          </div>
+        `;
+      }
+
+      function MessagesPage({ user, setUser, setStatus }) {
+        const [meLoading, setMeLoading] = useState(false);
+        const [text, setText] = useState("");
+        const [items, setItems] = useState([]);
+        const [loading, setLoading] = useState(true);
+
+          async function loadMessages() {
+               setLoading(true);
+               try {
+                    const msgs = await apiGetMessages();
+                    if (msgs === null) {
+                    setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+                    window.location.hash = "#/login";
+                    return;
+                    }
+                    setItems(msgs);
+               } catch (e) {
+                    setStatus({ kind: "error", msg: e?.message ?? String(e) });
+               } finally {
+                    setLoading(false);
+               }
+          }
+
+        useEffect(() => {
+          (async () => {
+               setMeLoading(true);
+               const me = await fetchMe();
+               setMeLoading(false);
+
+               if (!me) {
+                    setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+                    window.location.hash = "#/login";
+                    return;
+               }
+
+               setUser(me);
+               await loadMessages();
+          })();
+        }, [setStatus, setUser]);
+        useEffect(() => {
+          const t = setInterval(() => {
+               loadMessages();
+          }, 1000); // 1 second
+          return () => clearInterval(t);
+        }, []);
+        
+        async function addMessage() {
+          const content = text.trim();
+          if (!content) return;
+
+          try {
+               const created = await apiPostMessage(content);
+               if (created === null) {
+                    setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+                    window.location.hash = "#/login";
+                    return;
+               }
+
+               setText("");
+               setItems(prev => [...prev, created]); // append new one
+          } catch (e) {
+               setStatus({ kind: "error", msg: e?.message ?? String(e) });
+          }
+        }
+
+        return html`
+          <div>
+            <div className="row">
+              <div className="muted">
+                ${meLoading ? "Checking session..." : user ? html`Signed in as <b>${user.name ?? "Unknown"}</b>` : "Signed in"}
+              </div>
+              <button
+                onClick=${async () => {
+                  // No logout endpoint exists in your server right now (cookie is httpOnly),
+                  // so we can only “soft logout” the UI.
+                  setUser(null);
+                  setStatus({ kind: "idle", msg: "" });
+                  window.location.hash = "#/login";
+                }}
+              >
+                Back to Login
+              </button>
+            </div>
+
+            <div className="spacer"></div>
+
+            <div className="muted">
+              This is a front-end Messages UI.
+            </div>
+
+            <div className="spacer"></div>
+
+            <div className="row">
+              <input
+                style=${{ flex: 1, minWidth: "240px" }}
+                placeholder="Type a message..."
+                value=${text}
+                onInput=${(e) => setText(e.target.value)}
+                onKeyDown=${(e) => { if (e.key === "Enter") addMessage(); }}
+              />
+              <button onClick=${addMessage}>Send</button>
+            </div>
+
+            <div className="spacer"></div>
+
+            ${loading
+               ? html`<div className="muted">Loading messages…</div>`
+               : html`
+                   <ul className="list">
+                    ${items.map(m => html`
+                        <li key=${m.id ?? m._id} className="item">
+                         <div className="muted"><b>${m.author ?? "Unknown"}</b> • #${m.id ?? ""}</div>
+                         <div>${m.content ?? ""}</div>
+                      </li>
+                    `)}
+                 </ul>
+               `}
+          </div>
+        `;
+      }
+
+      createRoot(document.getElementById("root")).render(html`<${App} />`);
+    </script>
+  </body>
 </html>
