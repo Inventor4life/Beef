@@ -1,25 +1,16 @@
 # Beef
-## Introduction
-Beef is a discord clone created for WSU's Cpts 322 (Software Engineering I) course. It is designed to give our devs
- experience in microservice architectures and MERN web development while also working as a functional text and voice chat platform.
- 
-## The Name
-There are a handful of reasons why "Beef" was chosen as our project name. The first and foremost being that this is a student project and is not meant to compete with real products.
- As such, we decided that an unappealing parody name would be appropriate. Second, having a parody name such as "Beef" allows us to give cow-related themes to certain features.
- While we won't go so far as to call servers "Herds", we may implement small things such as using "Rare" and "Well Done" as our light/dark mode themes.
 
-## Directory Structure
-`infra/` contains information and configurations related to our infrastructure; committing this to public source control carries significant security risks, and our reasons for doing so are discussed in the [Infrastructure](#infrastructure) section.
+## Project Summary
 
-`experiments/` contains some of the experiments that were run during the development process. Each experiment gets its own subdirectory and should be accompanied by a README explaining the purpose of the experiment (and findings, if any).
+### One-sentence description of the project
 
-`services/` contains code for all services that we may deploy. Each service gets its own subdirectory, README, and docs.
+Beef is a Discord clone built with a microservice architecture using the MERN stack, developed as a student project for WSU's Cpts 322 (Software Engineering I) course.
 
-`tools/` contains developer tools such as local build/deployment scripts and whatever else we need later.
+### Additional information about the project
 
-`docs/` contains information that doesn't fit into the above categories. This may include the public API, request lifecycle, etc.
+Beef is a text and voice chat platform that mirrors core Discord functionality — guilds, channels, real-time messaging, and Google-based authentication. The project is intentionally given a parody name to reflect its student-project nature, with cow-themed touches like "Rare" and "Well Done" light/dark mode themes. The codebase is organized around independent, deployable services that communicate over a self-hosted network infrastructure managed with Terraform and OPNsense.
 
-## Infrastructure
+### Note About Infrastructure
 Despite the security risk involved in publically committing this information, we are doing so for the following reasons:
 
 1. The primary purpose of this app is to gain development experience and to demonstrate to employers that we have done so.
@@ -36,5 +27,118 @@ Despite the security risk involved in publically committing this information, we
 
 6. All passwords used in the infrastructure are randomly generated, and no passwords are reused (even within the infrastructure).
 
-## Development flow
-No commits can be made directly to `main`. All changes must be committed to another branch, a pull request must be opened, and the pull request should be reviewed by another developer before changes are made to `main`.
+## Installation
+
+### Prerequisites
+
+- [Git](https://git-scm.com/)
+- [Node.js](https://nodejs.org/) (with `npm`)
+- [TypeScript](https://www.typescriptlang.org/) (`npm install -g typescript`)
+- [MongoDB](https://www.mongodb.com/) (accessible instance — see `.env.example` for connection URI)
+- A Google OAuth 2.0 Client ID (for authentication)
+- OpenSSL or equivalent for generating TLS certificates (dev certs are provided in `tools/dev-certs/`)
+
+### Add-ons
+
+| Package | Purpose |
+|---------|---------|
+| [Express](https://expressjs.com/) (v5) | Web framework and routing |
+| [MongoDB Driver](https://www.npmjs.com/package/mongodb) | Database client for storing messages and user data |
+| [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) | Signing and verifying internal JWTs for session management |
+| [google-auth-library](https://www.npmjs.com/package/google-auth-library) | Verifying Google OAuth tokens during sign-in |
+| [cookie-parser](https://www.npmjs.com/package/cookie-parser) | Parsing cookies (used to read auth JWTs from requests) |
+| [dotenv](https://www.npmjs.com/package/dotenv) | Loading environment variables from `.env` files |
+| [TypeScript](https://www.typescriptlang.org/) | Static type checking and compilation |
+
+### Installation Steps
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Inventor4life/Beef.git
+   cd Beef
+   ```
+
+2. Navigate to the service directory:
+   ```bash
+   cd services/first-service
+   ```
+
+3. Install dependencies:
+   ```bash
+   npm ci
+   ```
+
+4. Create your environment file by copying the example:
+   ```bash
+   cp .env.example .env
+   ```
+
+5. Edit `.env` and fill in the required values:
+   - `GOOGLE_CLIENT_ID` — your Google OAuth 2.0 client ID
+   - `LOGIN_URI` — set to `https://localhost:3000/auth` for local development
+   - `JWT_SECRET` — a secret key used to sign internal JWTs
+   - `JWT_EXPIRY` — token lifetime in seconds (default `900` = 15 minutes)
+   - `MONGO_URI` — your MongoDB connection string (e.g., `mongodb://localhost:27017`)
+
+6. Compile TypeScript:
+   ```bash
+   tsc
+   ```
+
+7. Start the service:
+   ```bash
+   # Using the provided script (from the repo root):
+   ./services/first-service/server-start.sh dev
+
+   # Or manually:
+   export APP_ENV="DEVELOPMENT"
+   node build/main.js
+   ```
+
+   The server will start at `https://127.0.0.1:3000/` in development mode.
+
+## Functionality
+
+1. **Navigate to the root URL** (`/`) — you will see a landing page.
+2. **Log in** — visit `/auth` to sign in with Google. After successful authentication, you receive a JWT stored as an HTTP-only cookie.
+3. **Send messages** — `POST /messages` with a JSON body containing `{ "content": "your message" }`. Requires authentication.
+4. **View messages** — `GET /messages` returns all messages in the database. Requires authentication.
+5. **Test authentication** — `GET /test-auth` returns the decoded JWT payload for the current user.
+
+Messages have the following structure:
+```json
+{
+  "id": 1,
+  "author": "Display Name",
+  "content": "Hello, world!"
+}
+```
+
+## Known Problems
+
+- The `auth.ts` file is mostly empty — authentication logic currently lives in `main.ts` and should be refactored out (noted in `services/first-service/src/auth.ts`).
+- Message IDs are assigned incrementally in-memory and are not collision-safe across multiple service instances.
+- The frontend is minimal (a single `index.html` with a Google sign-in button) — there is no chat UI yet.
+- The process title for the service is hardcoded in `main.ts` rather than being set by the startup script (noted in source comments).
+- No automated tests exist (`npm test` currently exits with an error stub).
+
+## Contributing
+
+1. Fork it!
+2. Create your feature branch: `git checkout -b my-new-feature`
+3. Commit your changes: `git commit -am 'Add some feature'`
+4. Push to the branch: `git push origin my-new-feature`
+5. Submit a pull request :D
+
+**Note:** No commits can be made directly to `main`. All changes must go through a pull request and be reviewed by another developer.
+
+## Additional Documentation
+
+- [User Stories](docs/UserStories.md)
+- [Minimum Viable Product Spec](docs/MinimumViable.md)
+- [Building in Production](docs/BuildingInProd.md)
+- [Network Topology](infra/network-topology.md)
+
+## License
+
+This project currently has no License — see the [LICENSE.txt](LICENSE.txt) file for details.
