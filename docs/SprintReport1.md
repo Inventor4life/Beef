@@ -1,10 +1,9 @@
-
-# Sprint x Report (2/23/2026 - 3/1/2026)
+# Sprint 1 Report (2/23/2026 - 3/1/2026)
 ## What's New (User Facing)
-* The MVP is Live!
+* The MVP is Live (on our VPN)!
 * You can log in with Google
 * You can send basic messages
-* You can view messages send by you and other users
+* You can view messages sent by you and other users
 ## Work Summary (Developer Facing)
 Provide a one paragraph synposis of what your team accomplished this sprint. Don't
 repeat the "What's New" list of features. Instead, help the instructor understand
@@ -46,20 +45,28 @@ Here are links to the issues that we completed in this sprint:
 
 ## Incomplete Issues/User Stories
 Here are links to issues we worked on but did not complete in this sprint:
-* Migrate Database VM to Dedicated Node <<One sentence explanation of why issue was not completed>>
-* Implement Access Control in MongoDB <<One sentence explanation of why issue was not completed>>
-* Incorporate optil into Proxmox Cluster <<One sentence explanation of why issue was not completed>>
-* Create Development VMs <<One sentence explanation of why issue was not completed>>
-* Configure Cloudflare WARP Server/Clients to Allow VPN Access from WSU NAT <<One sentence explanation of why issue was not completed>>
-* Configure First Service to start at boot. Research some way to automate it for other services/production machines? <<One sentence explanation of why issue was not completed>>
-* Update Production HTTPS Certificate Permissions to Only be Accessible by the Deploy User <<One sentence explanation of why issue was not completed>>
-* Rewrite DB Bindings to be Modular and Ignorable <<One sentence explanation of why issue was not completed>>
-Examples of explanations (Remove this section when you save the file):
-* "We ran into a complication we did not anticipate (explain briefly)."
-* "We decided that the feature did not add sufficient value for us to work on it
-in this sprint (explain briefly)."
-* "We could not reproduce the bug" (explain briefly).
-* "We did not get to this issue because..." (explain briefly)
+* Migrate Database VM to Dedicated Node - This was more of an "upgrade" than an issue. The database works fine as-is,
+ but we do have a node available with 1TB of storage and 16GB of RAM, as opposed to the 16GB of storage and 2GB of RAM
+ the database currently has. The upgrade is not immediately required so was pushed to a future sprint.
+* Implement Access Control in MongoDB - Similar to above, the database works fine as is. Given that we only have a
+ single instance of a single service to access the db and the db is not publically accessible, this feature was
+ found to be irrelevant for the MVP.
+* Incorporate `opti1` into Proxmox Cluster - This is the infrastructure counterpart of the Migrate Database issue.
+ `Opti1` is the node that will eventually hold our database.
+* Create Development VMs - This was cut from sprint 1 due to time constraints. Given that we do not have a consistently
+ running service, we were able to pull the development branches onto the production server for testing.
+* Configure Cloudflare WARP Server/Clients to Allow VPN Access from WSU NAT - The VPN is set up, but we haven't got it
+ working reliably on all machines. Since we had a backup VPN set up already, we use that for the duration of this sprint
+* Configure First Service to start at boot. Research some way to automate it for other services/production machines? 
+ ideally this would be part of our minimum viable product. However we haven't had to restart the production VM at all, 
+ and starting the production service is as simple as running `./server-start.sh`.
+* Update Production HTTPS Certificate Permissions to Only be Accessible by the Deploy User - We found that this issue
+ was out of scope for our minimum viable product. This commit would be good to improve the security of our service, but
+ our service is not accessible from WAN and thus the added security is not needed.
+* Rewrite DB Bindings to be Modular and Ignorable - This is one of our top issues for the next sprint. Currently we
+ have a `connectToDB()` function that connects to the database and selects the `messages` collection, but prevents
+ the server from starting until it has successfully done so. Since we only need the `messages` collection for this
+ MVP, we are moving this to the next sprint.
 ## Code Files for Review
 Please review the following code files, which were actively developed during this
 sprint, for quality:
@@ -67,6 +74,7 @@ sprint, for quality:
 * [middleware.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/middleware.ts)
 * [messages.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/messages.ts)
 * [db.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/db.ts)
+* [index.html](https://github.com/Inventor4life/Beef/blob/main/services/first-service/data/index.html)
 ## Retrospective Summary
 Here's what went well:
 * Item 1
