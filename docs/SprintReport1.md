@@ -1,27 +1,50 @@
 # Sprint 1 Report (2/23/2026 - 3/1/2026)
+## Demo video:
+[https://youtu.be/-QXSCiDFX8Y](https://youtu.be/-QXSCiDFX8Y)
+
 ## What's New (User Facing)
-* The MVP is Live (on our VPN)!
+* The MVP is Live (from our VPN)!
 * You can log in with Google
 * You can send basic messages
 * You can view messages sent by you and other users
 ## Work Summary (Developer Facing)
-Provide a one paragraph synposis of what your team accomplished this sprint. Don't
-repeat the "What's New" list of features. Instead, help the instructor understand
-how you went about the work described there, any barriers you overcame, and any
-significant learnings for your team.
-We set up MongoDB in a VM, we set up a VM host to hold all production VMs, and we created
-a VPN to access the infrastructure, and we designed our services with a rough REST API 
-that can be easily expanded upon later. We created a React front-end that can load
-messages from the MongoDB and send messages to it. One major issue was that the GET requests 
-would work when localhosting, but would error on the production server.
+In order to store an access messages across restarts of the production service, we set up a virtual machine to host
+ mongoDB. A surprising number of steps went into this, more so than are ordinarily required to set up mongoDB. We had
+ to set up the virtual machine hosting software, set up a VPN to access the mongoDB VM, set up a firewall to sit
+ between WAN and mongoDB, and then set up Network Address Traversal because one of our developers had a local IP
+ conflict with our virtual network. In addition to this, we opted to use Terraform to manage our infrastructure, so
+ multiple experiments needed to be conducted to get that functional and reliable.
+ 
+To complement mongoDB, we decided to create a VM through terraform to manage our production services (unimaginatively
+ called the production VM). To make this useful to the development team, we had to set up ssh access, user accounts,
+ and a shared local github repo so that anyone can pull updates and start the service. We designed a REST API early to
+ parallelize our development process, but found that certain features (like google sign-in) didn't conform to our
+ original assumptions.
+ 
+In summary, we created a React front-end to communicate with a Node and Express backend that in turn uses outside
+ authentication services and mongoDB to allow near real-time messaging over the internet. Many barriers were faced when
+ getting the app to this point, most of which involved trying to get our services to communicate over the internet.
+ Since there isn't an easy way to debug packets sent between computers (that do not have packet-sniffing software
+ installed), a few of our fixes consisted of tweaking various settings over the course of many hours until something
+ works. The most notable examples of this include setting up the Wireguard VPN (Cloudflare not supporting udp proxy,
+ WSU blocking wireguard handshakes, and the wireguard client requiring occasional restarts to implement changes all
+ resulted in a non-functional VPN with no explanation or debug log.) and receiving responses from the Google OAuth
+ platform (The Google Identity services library will silently refuse to POST auth tokens to non-https endpoints, and
+ apparently there is a difference between `localhost` and `127.0.0.1` as far as the library is concerned.)
+
+We chose this particular tech stack because it is popular, well established, and our team has almost no experience with
+ it. This is our first exposure (with the exception of react) to nearly every technology we have implemented in this
+ application, including `proxmox`, `wireguard`, `opnsense`, `terraform`, `Node`, `Express`, `MongoDB`,
+ `typescript`, `Json Web Tokens`, and `Google Identity Services`. We hope to showcase more progress for future sprints
+ now that we have a basic app and experience with the tech stack, and we hope to integrate more tech in the future.
+ We're looking to include `Envoy`, `Docker`, `Kubernetes`, a CI/CD pipeline, and `Ansible` in the upcoming builds.
+
 ## Unfinished Work
-If applicable, explain the work you did not finish in this sprint. For issues/user
-stories in the current sprint that have not been closed, (a) any progress toward
-completion of the issues has been clearly tracked (by checking the checkboxes of
-acceptance criteria), (b) a comment has been added to the issue to explain why the
-issue could not be completed (e.g., "we ran out of time" or "we did not anticipate
-it would be so much work"), and (c) the issue is added to a subsequent sprint, so
-that it can be addressed later.
+We completed nearly everything outlined in our WA3 submission for this sprint, with the notable exception of the CI/CD
+ pipeline. While in theory, a CI/CD pipeline should be as simple as `clone repo on merge -> Build changed services into
+ containers -> upload containers to registry`, issues such as environment variable injection, attempting to debug
+ containers, and needing to set up orchestrator/registry/worker VMs mean that we need our infrastructure and software
+ to be more seasoned before we can reliably implement the pipeline.
 
 ## Completed Issues/User Stories
 Here are links to the issues that we completed in this sprint:
@@ -73,6 +96,7 @@ Here are links to issues we worked on but did not complete in this sprint:
  have a `connectToDB()` function that connects to the database and selects the `messages` collection, but prevents
  the server from starting until it has successfully done so. Since we only need the `messages` collection for this
  MVP, we are moving this to the next sprint.
+
 ## Code Files for Review
 Please review the following code files, which were actively developed during this
 sprint, for quality:
@@ -83,23 +107,33 @@ sprint, for quality:
 * [index.html](https://github.com/Inventor4life/Beef/blob/main/services/first-service/data/index.html)
 ## Retrospective Summary
 
-Here's what went well:
+### Here's what went well:
 * We have been able to make our minimum viable product
 * Everyone has managed to do their parts in time.
 * Our learning curves have gone well, with our team being able to use the new coding languages and software very fluidly.
 * Setting up the infrastructure has gone well
 * Vast improvement in using a Git Branching Development Model.
 
-Here's what we'd like to improve:
+### Here's what we'd like to improve:
 * Communication from the team member in charge of the front-end was lacking.
-* Our UI still has some issues that need to be addressed, like messages being loaded onto the bottom of the page, requiring the user to scroll to access them.
+* Our UI still has some issues that need to be addressed, like messages being loaded onto the bottom of the page,
+ requiring the user to scroll to access them.
 * We could have done a better job documenting expectations.
 * Code quality.
 * Sticking with project deadlines.
-
-Here are the changes we plan to implement in the next sprint:
+* Getting a better idea of project timelines, so we don't end up overscoping ourselves at the start and then slashing
+ features as the deadline approaches
+ 
+### Here are the changes we plan to implement in the next sprint:
+Team-based:
 * More effective communication.
 * More frequent documentation.
 * Dedicate time to UI improvements.
 * Cleaning up code.
-* Better time management.
+* Better overall time management.
+
+Technology:
+* Add guilds
+* Add messaging channels
+* Add user sign-in (Store user log in information rather than generating JWTs for anyone who signs in)
+* Split our monolithic service into microservices
