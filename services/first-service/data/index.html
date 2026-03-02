@@ -392,9 +392,6 @@
             ${loading && items.length === 0
                ? html`<div className="muted">Loading messages…</div>`
                : html`
-                 <div className="muted" style=${{ marginBottom: "8px" }}>
-                    ${syncing ? "Refreshing…" : ""}
-                  </div>
 
                   <ul className="list">
                     ${items.map(m => html`
