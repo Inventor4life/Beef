@@ -267,25 +267,30 @@
       }
 
       function MessagesPage({ user, setUser, setStatus }) {
-        const [meLoading, setMeLoading] = useState(false);
+        const [loading, setLoading] = useState(true);   // only for initial load
+        const [syncing, setSyncing] = useState(false);  
         const [text, setText] = useState("");
         const [items, setItems] = useState([]);
-        const [loading, setLoading] = useState(true);
+        const [meLoading, setMeLoading] = useState(false);
+        
 
-          async function loadMessages() {
-               setLoading(true);
+          async function loadMessages({ silent = false } = {}) {
+               if (silent) setSyncing(true);
+               else setLoading(true);
+
                try {
                     const msgs = await apiGetMessages();
                     if (msgs === null) {
-                    setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
-                    window.location.hash = "#/login";
-                    return;
+                         setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+                         window.location.hash = "#/login";
+                         return;
                     }
                     setItems(msgs);
                } catch (e) {
                     setStatus({ kind: "error", msg: e?.message ?? String(e) });
                } finally {
-                    setLoading(false);
+                    if (silent) setSyncing(false);
+                    else setLoading(false);
                }
           }
 
@@ -302,16 +307,29 @@
                }
 
                setUser(me);
-               await loadMessages();
+               await loadMessages({ silent: false });
           })();
         }, [setStatus, setUser]);
         useEffect(() => {
-          const t = setInterval(() => {
-               loadMessages();
-          }, 1000); // 1 second
-          return () => clearInterval(t);
-        }, []);
-        
+          let stopped = false;
+          let inFlight = false;
+
+          const t = setInterval(async () => {
+               if (stopped || inFlight) return;
+                    inFlight = true;
+               try {
+                    await loadMessages({ silent: true });
+               } finally {
+                    inFlight = false;
+               }
+          }, 1000);
+
+          return () => {
+               stopped = true;
+               clearInterval(t);
+          };
+     }, []);
+
         async function addMessage() {
           const content = text.trim();
           if (!content) return;
@@ -371,12 +389,16 @@
 
             <div className="spacer"></div>
 
-            ${loading
+            ${loading && items.length === 0
                ? html`<div className="muted">Loading messages…</div>`
                : html`
-                   <ul className="list">
+                 <div className="muted" style=${{ marginBottom: "8px" }}>
+                    ${syncing ? "Refreshing…" : ""}
+                  </div>
+
+                  <ul className="list">
                     ${items.map(m => html`
-                        <li key=${m.id ?? m._id} className="item">
+                      <li key=${String(m.id ?? m._id)} className="item">
                          <div className="muted"><b>${m.author ?? "Unknown"}</b> • #${m.id ?? ""}</div>
                          <div>${m.content ?? ""}</div>
                       </li>
