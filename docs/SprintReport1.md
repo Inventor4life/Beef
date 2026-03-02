@@ -9,6 +9,11 @@ Provide a one paragraph synposis of what your team accomplished this sprint. Don
 repeat the "What's New" list of features. Instead, help the instructor understand
 how you went about the work described there, any barriers you overcame, and any
 significant learnings for your team.
+We set up MongoDB in a VM, we set up a VM host to hold all production VMs, and we created
+a VPN to access the infrastructure, and we designed our services with a rough REST API 
+that can be easily expanded upon later. We created a React front-end that can load
+messages from the MongoDB and send messages to it. One major issue was that the GET requests 
+would work when localhosting, but would error on the production server.
 ## Unfinished Work
 If applicable, explain the work you did not finish in this sprint. For issues/user
 stories in the current sprint that have not been closed, (a) any progress toward
@@ -17,6 +22,7 @@ acceptance criteria), (b) a comment has been added to the issue to explain why t
 issue could not be completed (e.g., "we ran out of time" or "we did not anticipate
 it would be so much work"), and (c) the issue is added to a subsequent sprint, so
 that it can be addressed later.
+
 ## Completed Issues/User Stories
 Here are links to the issues that we completed in this sprint:
 * [Create VM for Database in Terraform](https://github.com/Inventor4life/Beef/issues/6)
@@ -76,15 +82,24 @@ sprint, for quality:
 * [db.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/db.ts)
 * [index.html](https://github.com/Inventor4life/Beef/blob/main/services/first-service/data/index.html)
 ## Retrospective Summary
+
 Here's what went well:
-* Item 1
-* Item 2
-* Item x
+* We have been able to make our minimum viable product
+* Everyone has managed to do their parts in time.
+* Our learning curves have gone well, with our team being able to use the new coding languages and software very fluidly.
+* Setting up the infrastructure has gone well
+* Vast improvement in using a Git Branching Development Model.
+
 Here's what we'd like to improve:
-* Item 1
-* Item 2
-* Item x
-Here are changes we plan to implement in the next sprint:
-* Item 1
-* Item 2
-* Item x
+* Communication from the team member in charge of the front-end was lacking.
+* Our UI still has some issues that need to be addressed, like messages being loaded onto the bottom of the page, requiring the user to scroll to access them.
+* We could have done a better job documenting expectations.
+* Code quality.
+* Sticking with project deadlines.
+
+Here are the changes we plan to implement in the next sprint:
+* More effective communication.
+* More frequent documentation.
+* Dedicate time to UI improvements.
+* Cleaning up code.
+* Better time management.
