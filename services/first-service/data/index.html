@@ -305,6 +305,13 @@
                await loadMessages();
           })();
         }, [setStatus, setUser]);
+        useEffect(() => {
+          const t = setInterval(() => {
+               loadMessages();
+          }, 1000); // 1 second
+          return () => clearInterval(t);
+        }, []);
+        
         async function addMessage() {
           const content = text.trim();
           if (!content) return;
@@ -346,8 +353,7 @@
             <div className="spacer"></div>
 
             <div className="muted">
-              This is a front-end Messages UI. Right now it stores messages in <code>localStorage</code>.
-              Still have to integrate the get/post stuff.
+              This is a front-end Messages UI.
             </div>
 
             <div className="spacer"></div>
