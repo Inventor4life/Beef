@@ -1,0 +1,113 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+</head>
+<body>
+temp messages<br>
+
+<div id="chatBox" rows="4" cols="50" readonly>
+</div><br>
+
+<input type="text" id="inputMessage" placeholder="Enter message">
+<button type = "button" onclick="sendMessage()"> Send </button>
+
+<script>
+
+class Message {
+  constructor(author, id, content) {
+    this.author = author
+    this.id = id
+    this.content = content
+  }
+  author = "";
+  id = 0;
+  content = "";
+  toHTML() {
+    return `<b>${this.author}: </b>${this.content}<br>`;
+  }
+}
+
+let myMessages = [];
+
+/*
+function writeToChatBox() {
+  // 1. Get the textarea element by its ID
+  const textArea = document.getElementById("chatBox");
+
+  // 2. Set the 'value' property to the new text
+  textArea.value = "This is the new text written by JavaScript.";
+}
+*/
+
+function updateChatBox(messages) {
+  let chatBoxText="";
+  messages.forEach(element => {
+    chatBoxText += element.toHTML();
+  })
+
+  const textArea = document.getElementById("chatBox");
+  textArea.innerHTML = chatBoxText;
+}
+
+function getMessages() {
+  fetch("http://localhost:3000/messages", {
+      method: "GET", // Specify the method
+      headers: {
+          "Content-Type": "application/json" // Declare the content type
+      },
+      //body: JSON.stringify(postData) // Convert the JavaScript object to a JSON string
+  })
+  .then(response => response.json()) // Parse the JSON response
+  .then(data => {
+    console.log(data);
+    myMessages = []
+    data.forEach(element => {
+      console.log(`element: ${element.author}`)
+      myMessages.push(new Message(
+        element.author,
+        element.id,
+        element.content
+      ));
+    });
+    updateChatBox(myMessages);
+  }) // Handle the data
+  .catch((error) => {
+      console.error("Error:", error); // Handle any errors
+  });
+}
+
+getMessages();
+
+function sendMessage() {
+  const inputBox = document.getElementById("inputMessage");
+  let postData = {
+    content: inputBox.value
+  }
+  fetch("http://localhost:3000/messages", {
+      method: "POST", // Specify the method
+      headers: {
+          "Content-Type": "application/json" // Declare the content type
+      },
+      body: JSON.stringify(postData) // Convert the JavaScript object to a JSON string
+  })
+  .then(response => response.json()) // Parse the JSON response
+  .then(data => {
+    myMessages.push(new Message(
+        data.author,
+        data.id,
+        data.content
+    ))
+    updateChatBox(myMessages);
+    inputBox.value="";
+  }) // Handle the success
+  .catch((error) => {
+      console.error("Error:", error); // Handle any errors
+  });
+}
+
+const msgInterval = setInterval(getMessages, 2000);
+
+</script>
+
+</body>
+</html>
