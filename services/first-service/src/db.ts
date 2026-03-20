@@ -1,35 +1,36 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
 
-let client: MongoClient;
-let db: Db;
-let messagesCollection: Collection;
-let lastMessageId: number = 0;
+let client: MongoClient | null = null;
+let db: Db | null = null;
 
 export async function connectToDb() {
     client = new MongoClient(process.env.MONGO_URI!);
     await client.connect();
-    console.log("Connected to MongoDB");
     db = client.db("beef");
-    messagesCollection = db.collection("messages");
-    // query for the highest meessage id
-    const lastMessage = await messagesCollection.findOne({}, { sort: { id: -1 } });
-    if (lastMessage) {
-        lastMessageId = lastMessage.id as number;
-    }
+    console.log("Connected to MongoDB");
+}
 
-    console.log(`Last message id: ${lastMessageId}`);
+export function isDbConnected() {
+    return client !== null && db !== null;
+}
+
+export function getDb() {
+    if (!db) {
+        throw new Error("Database not connected");
+    }
+    return db;
+}
+
+// should be changed later prolly to add generics for type safety, for now though it just returns document
+export function getCollection(name: string): Collection {
+    return getDb().collection(name);
 }
 
 export async function closeDb() {
-    await client.close();
-    console.log("Closed MongoDB connection");
-}
-
-export function getMessagesCollection() {
-    return messagesCollection;
-}
-
-export function getNextMessageId() {
-    lastMessageId++;
-    return lastMessageId;
+    if (client) {
+        await client.close();
+        client = null;
+        db = null;
+        console.log("Closed MongoDB connection");
+    }
 }

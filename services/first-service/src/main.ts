@@ -7,10 +7,10 @@ import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import path from "path";
 import { requireAuth } from "./middleware.js";
-import { connectToDb, closeDb } from "./db.js";
+import { connectToDb, closeDb, isDbConnected } from "./db.js";
 import https from "https";
 import fs from "fs";
-import messageRoutes from "./messages.js";
+import messageRoutes, { initMessages } from "./messages.js";
 
 // I would rather the process title be set in the startup script, but we haven't gotten that working reliably.
 // My gut says this service should have little to no concept of what the process title is, because it doesn't yet need
@@ -130,11 +130,21 @@ app.post('/auth', async (req: Request, res: Response) => {
   res.redirect("/");
 });
 
-const server = await connectToDb().then(() => {
-	return https.createServer({key, cert}, app).listen(PORT, HOST, () => {
-		console.log(`Server running at https://${HOST}:${PORT}/`);
-	});
+
+// simple health checkpoint
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ 
+    status: "ok" ,
+    db: isDbConnected() ? "connected" : "not connected"
+  });
 });
+
+// now separating the server startup and DB connection so that the server can start even if the DB is not available
+const server = https.createServer({key, cert}, app).listen(PORT, HOST, () => {
+  console.log(`Server running at https://${HOST}:${PORT}/`);
+});
+
+connectToDb().then(() => initMessages()).then(() => console.log("DB connected.")).catch((err) => console.error("Failed to connect to DB:", err));
 
 process.on('SIGTERM', async () => {
 	server.close();
