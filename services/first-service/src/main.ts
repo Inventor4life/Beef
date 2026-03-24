@@ -11,6 +11,7 @@ import { connectToDb, closeDb, isDbConnected } from "./db.js";
 import https from "https";
 import fs from "fs";
 import messageRoutes, { initMessages } from "./messages.js";
+import guildRoutes from "./guilds.js";
 
 // I would rather the process title be set in the startup script, but we haven't gotten that working reliably.
 // My gut says this service should have little to no concept of what the process title is, because it doesn't yet need
@@ -25,6 +26,7 @@ app.use(express.json())
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true })); // parse URL-encoded bodies for google
 app.use(messageRoutes); // use the message routes defined in messages.ts
+app.use(guildRoutes); // use the guild routes defined in guilds.ts
 
 // Google JWT verification
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
