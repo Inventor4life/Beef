@@ -1,4 +1,5 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
+import type { Document } from "mongodb";
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
@@ -22,8 +23,9 @@ export function getDb() {
 }
 
 // should be changed later prolly to add generics for type safety, for now though it just returns document
-export function getCollection(name: string): Collection {
-    return getDb().collection(name);
+// changed to support generics, needed to define interface in guilds.ts
+export function getCollection<T extends Document = Document>(name: string) { // default generic is document
+    return getDb().collection<T>(name);
 }
 
 export async function closeDb() {

@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { requireAuth } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 
+
 // using router since we are not in main.ts, then export the router to be used in main.ts
 const router = Router();
 let lastMsgId: number = 0;
