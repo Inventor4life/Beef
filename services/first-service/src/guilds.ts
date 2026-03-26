@@ -2,12 +2,20 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { requireAuth } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
+import { generateSnowflake } from './snowflake.js';
 
 interface Guild {
     _id: string;
     friendlyName: string;
     members: string[];
     channels: [{ friendlyName: string; _id: string }];
+}
+
+interface Message {
+    _id: string;
+    channelID: string;
+    authorID: string;
+    content: string;
 }
 
 const router = Router();
@@ -25,8 +33,7 @@ router.get('/guilds/:guildID', requireAuth, async (req: Request, res: Response) 
     const guildID = req.params.guildID;
     // confirm it is string for mongodb, have to do or else ts error
     if (!guildID || typeof guildID !== 'string') {
-        // added 400 code, better suited for this error (bad request)
-        res.status(400).json({ error: "guildID is required and must be a string" });
+        res.status(500).json({ error: "guildID is required and must be a string" });
         return;
     }
     try {
@@ -43,6 +50,76 @@ router.get('/guilds/:guildID', requireAuth, async (req: Request, res: Response) 
         console.log("Error fetching guild:", err);
         res.status(500).json({ error: "failed to fetch guild" });
     }
+});
+
+router.post('/guilds/:guildID/channels/:channelID/messages', requireAuth, async (req: Request, res: Response) => {
+    // check if db not connected
+    if (!isDbConnected()) {
+        res.status(503).json({ error: "database not connected" });
+        return;
+    }
+
+    const guildID = req.params.guildID;
+    const channelID = req.params.channelID;
+    
+    // validate guildID is string
+    if (!guildID || typeof guildID !== 'string') {
+        res.status(500).json({ error: "guildID is required and must be a string" });
+        return;
+    }
+
+    // same for channelID
+    if (!channelID || typeof channelID !== 'string') {
+        res.status(500).json({ error: "channelID is required and must be a string" });
+        return;
+    }
+
+    try {
+        // find guild
+        const guild = await getCollection<Guild>("guilds").findOne({ _id: guildID });
+        // 404 if no guild
+        if (!guild) {
+            res.status(404).json({ error: "guild not found" });
+            return;
+        }
+        // find channel in guild
+        const channel = guild.channels.find(c => c._id === channelID);
+        // 404 if no channel
+        if (!channel) {
+            res.status(404).json({ error: "channel not found" });
+            return;
+        }
+
+        // validate req body
+        const { content } = req.body;
+        if (!content || typeof content !== 'string') {
+            res.status(500).json({ error: "content is required and must be a string" });
+            return;
+        }
+
+        const user = res.locals.user;
+
+        const message: Message = {
+            _id: generateSnowflake(),
+            channelID: channelID,
+            authorID: user.sub, // instead of name in messages.ts post route since we want UUID
+            content: content
+        }
+        // insert into db
+        try {
+            await getCollection<Message>("messages").insertOne(message);
+        }
+        catch (err) {
+            res.status(503).json({ error: "failed to insert message into database" });
+            return;
+        }
+        res.status(201).json(message);
+
+    } catch (err) {
+        console.log("Error creating message:", err);
+        res.status(500).json({ error: "failed to create message" });
+    }
+
 });
 
 export default router;
