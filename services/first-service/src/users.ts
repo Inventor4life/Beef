@@ -50,7 +50,7 @@ router.post('/users', requireAuth, async (req: Request, res: Response)=>{
   try {
     await getCollection<User>("users").insertOne(newUser)
   } catch(err) {
-    console.log(err)
+    console.log("Error inserting user:", err)
     res.status(500).json({ error: "failed to insert new user into database" });
     return;
   }
