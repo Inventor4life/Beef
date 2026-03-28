@@ -60,4 +60,33 @@ router.post('/users', requireAuth, async (req: Request, res: Response)=>{
   // Not really a place to catch a generic error and return code 500.
 })
 
+router.get('/users/:userID', requireAuth, async (req: Request, res: Response) => {
+  // DB connectivity check
+  if (!isDbConnected()) {
+    res.status(503).json({ error: "database not connected" });
+    return;
+  }
+
+  // userID should be padded to 20 chars with "0" on the LHS. Can't pad yet because userID may not exist.
+  const userIDunpadded = req.params.userID
+  if (!userIDunpadded || typeof userIDunpadded !== 'string') {
+    res.status(400).json({ error: "missing required route parameter \"userID\"." });
+    return;
+  }
+
+  const userID = userIDunpadded.padStart(20, "0"); // User ID of user to be searched for
+  try {
+    const userResult = await getCollection<User>("users").findOne({_id: userID})
+    if(!userResult) {
+      res.status(404).json({ error: "user not found"});
+      return;
+    }
+    res.status(200).json(userResult);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "failed to fetch user"})
+  }
+
+});
+
 export default router;
