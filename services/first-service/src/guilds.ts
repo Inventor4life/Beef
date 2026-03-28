@@ -122,4 +122,59 @@ router.post('/guilds/:guildID/channels/:channelID/messages', requireAuth, async 
 
 });
 
+router.get('/guilds/:guildID/channels/:channelID/messages', requireAuth, async (req: Request, res: Response) => {
+    if (!isDbConnected()) {
+        res.status(503).json({ error: "database not connected" });
+        return;
+    }
+
+    const guildID = req.params.guildID;
+    const channelID = req.params.channelID;
+
+    // validate guildID is string
+    if (!guildID || typeof guildID !== 'string') {
+        res.status(500).json({ error: "guildID is required and must be a string" });
+        return;
+    }
+
+    // same for channelID
+    if (!channelID || typeof channelID !== 'string') {
+        res.status(500).json({ error: "channelID is required and must be a string" });
+        return;
+    }
+
+    try {
+        // find guild
+        const guild = await getCollection<Guild>("guilds").findOne({ _id: guildID });
+        // 404 if no guild
+        if (!guild) {
+            res.status(404).json({ error: "guild not found" });
+            return;
+        }
+        // find channel in guild
+        const channel = guild.channels.find(c => c._id === channelID);
+        // 404 if no channel
+        if (!channel) {
+            res.status(404).json({ error: "channel not found" });
+            return;
+        }
+
+        const beforeID = req.query.beforeID;
+        // filter is an object which has channelID, and an optional _id which uses $lt (mongodb less than operator) to filter messages before some time
+        // essentially passing this object filters to only messages in the channel, and only messages before the beforeID (if provided)
+        let filter: { channelID: string; _id?: { $lt: string } } = { channelID: channelID };
+        // if we have beforeID pad it and include it in the filter
+        if (beforeID && typeof beforeID === 'string') {
+            filter._id = { $lt: beforeID.padStart(20, '0') }; // https://www.mongodb.com/docs/manual/reference/operator/query/lt/
+        }
+
+        // find messages in db with filter, limit 50, most to least recent
+        const messages = await getCollection<Message>("messages").find(filter).sort({ _id: -1 }).limit(50).toArray();
+        res.status(200).json(messages);
+    } catch (err) {
+        console.log("Error fetching messages:", err);
+        res.status(500).json({ error: "failed to fetch messages" });
+    }
+});
+
 export default router;
