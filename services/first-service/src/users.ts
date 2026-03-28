@@ -50,7 +50,7 @@ router.post('/users', requireAuth, async (req: Request, res: Response)=>{
   try {
     await getCollection<User>("users").insertOne(newUser)
   } catch(err) {
-    console.log("Error inserting user:", err)
+    console.log("POST /users Error inserting user:", err)
     res.status(500).json({ error: "failed to insert new user into database" });
     return;
   }
@@ -72,7 +72,7 @@ router.get('/users/me', requireAuth, async (req: Request, res: Response) => {
   if (!userID || typeof userID !== 'string') {
     // The auth middleware requires a signed JWT. Those JWTs should only be issued by the auth service, which should
     //  always issue an ID (unless it is a service account, which shouldn't call /users/me).
-    console.log("Missing userID for /users/me. (id, type): ", userID, typeof userID);
+    console.log("GET /users/me missing userId (id, type): ", userID,", ", typeof userID);
     res.status(500).json({ error: "missing userID. This error should not be possible." });
     return;
   }
@@ -116,7 +116,7 @@ router.get('/users', requireAuth, async (req: Request, res: Response) => {
     }
     res.status(200).json(userResult);
   } catch (err) {
-    console.log(err);
+    console.log("GET /users?oidcSub general error: ", err);
     res.status(500).json({ error: "failed to fetch user"})
   }
 
@@ -145,7 +145,7 @@ router.get('/users/:userID', requireAuth, async (req: Request, res: Response) =>
     }
     res.status(200).json(userResult);
   } catch (err) {
-    console.log(err);
+    console.log("GET /users/:userID general error: ", err);
     res.status(500).json({ error: "failed to fetch user"})
   }
 
