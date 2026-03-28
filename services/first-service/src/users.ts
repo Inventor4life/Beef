@@ -60,6 +60,40 @@ router.post('/users', requireAuth, async (req: Request, res: Response)=>{
   // Not really a place to catch a generic error and return code 500.
 })
 
+router.get('/users/me', requireAuth, async (req: Request, res: Response) => {
+  // DB connectivity check
+  if (!isDbConnected()) {
+    res.status(503).json({ error: "database not connected" });
+    return;
+  }
+
+  // userID of requesting user, provided by auth middleware in middleware.ts.
+  const userID = res.locals.user.sub
+  if (!userID || typeof userID !== 'string') {
+    // The auth middleware requires a signed JWT. Those JWTs should only be issued by the auth service, which should
+    //  always issue an ID (unless it is a service account, which shouldn't call /users/me).
+    console.log("Missing userID for /users/me. (id, type): ", userID, typeof userID);
+    res.status(500).json({ error: "missing userID. This error should not be possible." });
+    return;
+  }
+
+  try {
+    const userResult = await getCollection<User>("users").findOne({_id: userID})
+    if(!userResult) {
+      // A userID is required to get an issued JWT. This error is an edge-case where an account was deleted
+      //  (not banned) while an active JWT existed.
+      console.log("GET /users/me user not found: ", userID)
+      res.status(404).json({ error: "user not found. This error should not be possible." });
+      return;
+    }
+    res.status(200).json(userResult);
+  } catch (err) {
+    console.log("GET /users/me general error:", err);
+    res.status(500).json({ error: "failed to fetch user"})
+  }
+
+});
+
 router.get('/users/:userID', requireAuth, async (req: Request, res: Response) => {
   // DB connectivity check
   if (!isDbConnected()) {
