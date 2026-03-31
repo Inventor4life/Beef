@@ -2,19 +2,14 @@ import express from "express";
 import { Agent } from "undici"
 import https from "https"
 import type {Request, Response, NextFunction} from "express";
-import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
-import jwt from "jsonwebtoken";
-import type { SignOptions } from "jsonwebtoken";
 import path from "path";
-import { requireAuth } from "./middleware.js";
 import { connectToDb, closeDb, isDbConnected } from "./db.js";
 import fs from "fs";
 import messageRoutes, { initMessages } from "./messages.js";
 import guildRoutes from "./guilds.js";
 import userRoutes from "./users.js"
 import { authRoutes, authUseAgent } from "./auth.js";
-import { auth } from "google-auth-library";
 
 // I would rather the process title be set in the startup script, but we haven't gotten that working reliably.
 // My gut says this service should have little to no concept of what the process title is, because it doesn't yet need
@@ -26,7 +21,6 @@ dotenv.config();
 
 const app = express();
 app.use(express.json())
-//app.use(cookieParser());
 
 app.use(messageRoutes); // use the message routes defined in messages.ts
 app.use(guildRoutes); // use the guild routes defined in guilds.ts
