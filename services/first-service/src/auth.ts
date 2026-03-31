@@ -48,7 +48,6 @@ function generateServiceToken() : string{
 }
 
 let thisServiceToken = generateServiceToken();
-
 // Helper functions. Will eventually be replaced by an API wrapper library
 //
 
@@ -64,7 +63,8 @@ async function userGetFromOidc(serviceToken: string, oidcSub: string) : Promise<
   const res = await fetch(getLocalUrl(`/users?oidcSub=${oidcSub}`),
     {
       headers: {
-        user_token: serviceToken
+        user_token: serviceToken,
+        cookie: `user_token=${serviceToken};`
       },
       dispatcher: serviceAgent
     } as RequestInit
@@ -85,9 +85,11 @@ async function userCreate(serviceToken: string, newUser: {friendlyName: string, 
     body: JSON.stringify(newUser),
     headers: {
       "Content-type": "application/json; charset=UTF-8",
-      "user_token": serviceToken
-    }
-  })
+      cookie: `user_token=${serviceToken};`
+    },
+    dispatcher: serviceAgent
+    } as any
+  )
   if(res.status != 201) {
     return {
       status: res.status,
@@ -141,12 +143,15 @@ authRoutes.post('/auth', async (req: Request, res: Response) => {
         case 401:
           thisServiceToken = generateServiceToken();
           // Will reattempt request
+          if(reattempt == 0) {
+            res.status(500).json({error: "Internal server error"})
+            return;
+          }
           continue; // Breaks switch and restarts loop
         case 503:
           res.status(503).json({error: "query failed"});
           console.log("POST /auth database query failed");
-          reattempt = 0; // While there may be some merit to retrying here, we'll implement that if needed.
-          continue; // Exits both switch and loop
+          return;
         case 404:
           // User does not exist. Need to create user.
           result = await userCreate(thisServiceToken, { // If this fails, result is quickly overwritten on next attempt
@@ -155,6 +160,10 @@ authRoutes.post('/auth', async (req: Request, res: Response) => {
           })
           if('status' in result) {
             console.log("POST /auth create user failed: ", result.status);
+            if(result.status != 401) {
+              res.status(500).json({error: "Internal server error"})
+              return;
+            }
             continue; // Reattempt
           }
           // else, result is the newly created User
@@ -162,8 +171,7 @@ authRoutes.post('/auth', async (req: Request, res: Response) => {
         default:
           res.status(500).json({error: "Internal server error"})
           console.log("POST /auth unknown error, status ", result.status)
-          reattempt = 0;
-          continue;
+          return;
       }
     } // else (except for successful user creation)
     //
@@ -182,11 +190,11 @@ authRoutes.post('/auth', async (req: Request, res: Response) => {
       httpOnly: true,
       secure: true,
       sameSite: "strict"
-    }).redirect("/chat")
+    }).redirect("/chat")//("/auth#/messages")
 
-    reattempt = 0; // Successful response. No reattempts needed
+    return;
   }
-  // Any post-user-login cleanup goes here.
+  res.status(500).json({error: "Internal server error"}) // This might be reached if POSTing a user fails twice in a row.
 });
 
 authRoutes.get('/test-auth', requireAuth, (req: Request, res: Response) => {
