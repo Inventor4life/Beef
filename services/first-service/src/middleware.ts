@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
+import {Router} from "express"
 import jwt from "jsonwebtoken";
 import type { JwtPayload, VerifyOptions } from "jsonwebtoken";
 
@@ -8,8 +10,10 @@ const options: VerifyOptions = {
   algorithms: ['HS256']
 }
 
+export const requireAuth = Router()
+
 // adapted from /experiments/multi_service_sign_in/src/presenter.ts
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export function authCheck(req: Request, res: Response, next: NextFunction) {
     const token: string = req.cookies.user_token ?? "";
     if (token == "") {
         res.status(401).json({ error: "no token provided" });
@@ -25,3 +29,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
         return;
     }
 }
+
+requireAuth.use(cookieParser())
+requireAuth.use(authCheck)
