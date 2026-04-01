@@ -1,18 +1,15 @@
 import express from "express";
+import { Agent } from "undici"
+import https from "https"
 import type {Request, Response, NextFunction} from "express";
-import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
-import { OAuth2Client } from "google-auth-library";
-import jwt from "jsonwebtoken";
-import type { SignOptions } from "jsonwebtoken";
 import path from "path";
-import { requireAuth } from "./middleware.js";
 import { connectToDb, closeDb, isDbConnected } from "./db.js";
-import https from "https";
 import fs from "fs";
 import messageRoutes, { initMessages } from "./messages.js";
 import guildRoutes from "./guilds.js";
 import userRoutes from "./users.js"
+import { authRoutes, authUseAgent, setLocalUrlPrefix } from "./auth.js";
 
 // I would rather the process title be set in the startup script, but we haven't gotten that working reliably.
 // My gut says this service should have little to no concept of what the process title is, because it doesn't yet need
@@ -24,28 +21,14 @@ dotenv.config();
 
 const app = express();
 app.use(express.json())
-app.use(cookieParser());
-app.use(express.urlencoded({ extended: true })); // parse URL-encoded bodies for google
+
 app.use(messageRoutes); // use the message routes defined in messages.ts
 app.use(guildRoutes); // use the guild routes defined in guilds.ts
-app.use(userRoutes);
+app.use(userRoutes); // use the user routes defined in users.ts
+app.use(authRoutes); // use the auth routes defined in auth.ts
 
-// Google JWT verification
+// Google OAuth client ID
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
-const authClient = new OAuth2Client({clientId: CLIENT_ID})
-async function verifyJWT(token: string) {
-  const ticket = await authClient.verifyIdToken({idToken: token, audience:CLIENT_ID});
-  return ticket.getPayload();
-}
-
-// Internal JWT creation
-const secretKey: string = process.env.JWT_SECRET!; // sha256 of SuperSecretAuthKey
-const options: SignOptions = {
-  issuer: "myAuthService",
-  audience: "beef",
-  algorithm: 'HS256',
-  expiresIn: Number(process.env.JWT_EXPIRY) // in seconds.
-}
 
 // Generic runtime parameters
 const PATH_THIS_FILE = import.meta.dirname;
@@ -59,8 +42,9 @@ switch(process.env.APP_ENV) {
 		console.log("Started as Production");
 		HOST = "10.0.0.6";
 		PORT = 3000;
-    key = fs.readFileSync("/prod/certs/first-service.key"); // /services/first-service/src/main.ts -> /tools/dev-certs/devcert1.key
+    key = fs.readFileSync("/prod/certs/first-service.key");
     cert = fs.readFileSync("/prod/certs/first-service.crt");
+		setLocalUrlPrefix("https://10.0.0.6:3000")
 	break;
 	case "DEVELOPMENT":	
 		console.log("Started as Development");
@@ -68,11 +52,20 @@ switch(process.env.APP_ENV) {
 		PORT = 3000;
     key = fs.readFileSync(path.resolve(PATH_THIS_FILE, "../../../tools/dev-certs/devcert1.key")); // /services/first-service/src/main.ts -> /tools/dev-certs/devcert1.key
     cert = fs.readFileSync(path.resolve(PATH_THIS_FILE, "../../../tools/dev-certs/devcert1.crt"));
+		setLocalUrlPrefix("https://localhost:3000")
 	break;
 	default:
 		console.log(`Unknown environment ${process.env.APP_ENV}`);
 		process.exit(1)
 };
+
+const serviceAgent = new Agent({ // Https agent so that this service can call its own endpoints.
+  connect: {
+    ca: cert,
+		rejectUnauthorized: false
+  }
+})
+authUseAgent(serviceAgent);
 
 const LOGIN_URI = process.env.LOGIN_URI!;
 const indexPageTemplate = fs.readFileSync(path.resolve(PATH_THIS_FILE,"../data/index.html"), {encoding: "utf-8"});
@@ -83,57 +76,10 @@ app.get('/', (req: Request, res: Response) => {
     res.send("Typescript with express!");
 });
 
-app.get('/test-auth', requireAuth, (req: Request, res: Response) => {
-	res.json({ user: res.locals.user });
-});
-
+// Going to leave this in main instead of moving it to auth.ts, because this is more related to the presenter service.
 app.get('/auth', (req: Request, res: Response) => {
 	res.send(indexPage);
 });
-
-app.post('/auth', async (req: Request, res: Response) => {
-  console.log("received POST, running tests..."); // body g_csrf_token: ${req.body.g_csrf_token}, header cookie g_csrf_token: ${req.cookies.g_csrf_token}\n credential: ${req.body.credential}`);
-  if(req.cookies.g_csrf_token == undefined || req.cookies.g_csrf_token != req.body.g_csrf_token) {
-    console.log("csrf test failed");
-    res.redirect("/");
-    return;
-  } // else
-
-  console.log("csrf test passed");
-  const googlePayload = await verifyJWT(req.body.credential)
-  if(googlePayload == undefined) { // verifyJWT returns undefined if the JWT could not be authenticated.
-    console.log("JWT verification failed");
-    res.redirect("/");
-    return;
-  } // else
-
-  // JWT validation successful, print as such
-  console.log(`JWT verification: ${googlePayload.sub}`);
-  console.log(`JWT name: ${googlePayload?.given_name}`);
-
-  // Sign internal JWT
-  const internalPayload = {
-    // Registered Claims
-    "sub": "beefid:"+googlePayload.sub,
-    
-    // Private claims
-    "name": googlePayload?.name ?? "Anonymous"
-  };
-  const token = jwt.sign(internalPayload, secretKey, options);
-
-  // Give signed JWT to user
-  res.cookie("user_token", token, {
-    maxAge: (Number(process.env.JWT_EXPIRY) * 1000), // s to ms
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict"
-  })
-
-  // Redirect them to / for cookie processing
-  // no longer redirecting to /index since this is a monolithic server, no reason to
-  res.redirect("/");
-});
-
 
 // simple health checkpoint
 app.get('/health', (req: Request, res: Response) => {

@@ -4,7 +4,7 @@ import { requireAuth } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 import { generateSnowflake } from './snowflake.js';
 
-interface User {
+export interface User {
   _id: string,
   oidcSub: string,
   friendlyName: string,
