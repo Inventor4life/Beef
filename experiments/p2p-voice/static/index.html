@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<head></head>
+<body>
+  Hello World!
+  <video autoplay id="remote-video"></video>
+  <video autoplay muted id="local-video"></video>
+  <script>
+    let isSender = undefined
+
+    let pc = new RTCPeerConnection({
+      iceServers:[]
+    });
+    let signalServer = new WebSocket("/");
+
+    signalServer.addEventListener("message", async (event) => {
+      let message = JSON.parse(event.data)
+      if(message.type === "createOffer" && !isSender) {
+        console.log("received offer")
+        console.log(JSON.stringify(message.sdp))
+        awaiting = false
+        const remoteDesc = new RTCSessionDescription(message.sdp)
+        await pc.setRemoteDescription(remoteDesc)
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer)
+        signalServer.send(JSON.stringify({
+          type: "createAnswer",
+          sdp: answer
+        }))
+
+      } else if (message.type === "createAnswer" && isSender) {
+        console.log("received answer")
+        console.log(JSON.stringify(message.sdp))
+        awaiting = false;
+        const remoteDesc = new RTCSessionDescription(message.sdp);
+        await pc.setRemoteDescription(remoteDesc);
+      
+      } else if (message.type === "iceCandidate") {
+        try {
+          await pc.addIceCandidate(message.candidate);
+        } catch (e) {
+          console.error('Error adding received ice candidate', e);
+        }
+      }
+    });
+
+    // Listen for local ICE candidates on the local RTCPeerConnection
+    pc.addEventListener('icecandidate', event => {
+      if (event.candidate) {
+          signalServer.send(JSON.stringify({
+            type: "iceCandidate",
+            candidate: event.candidate
+          }));
+      }
+    });
+
+    // Listen for connectionstatechange on the local RTCPeerConnection
+    pc.addEventListener('connectionstatechange', event => {
+      if (pc.connectionState === 'connected') {
+        // Peers connected!
+        console.log("peers connected!")
+      }
+    });
+
+    pc.addEventListener('track', event => {
+      document.getElementById("remote-video").srcObject = event.streams[0];
+    })
+
+    navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    }).then(stream => {
+      let lvideo = document.getElementById("local-video")
+      if(lvideo) {
+        lvideo.srcObject = stream;
+      }
+      stream.getTracks().forEach(track => pc.addTrack(track, stream)); 
+    })
+
+    let awaiting = true;
+    let intID = undefined
+
+    async function attemptConnection() {
+      if(!awaiting) {
+        clearInterval(intID);
+        intID = undefined;
+        return;
+      }
+      signalServer.send(JSON.stringify({
+        type: isSender? "sender" : "receiver"
+      }));
+      if(isSender) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer)
+        signalServer.send(JSON.stringify({
+          type: "createOffer",
+          sdp: offer
+        }))
+      }
+    }
+    
+    function connect() {
+      if(intID != undefined) clearInterval(intID)
+      intID = setInterval(attemptConnection, 2000)
+    }
+  </script>
+  <button onclick="isSender = true; connect()">Sender</button>
+  <button onclick="isSender = false; connect()">Receiver</button>
+</body>
+</html>
