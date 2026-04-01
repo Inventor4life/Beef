@@ -64,15 +64,24 @@ export function authUseAgent(newAgent: Agent) {
 }
 
 async function userGetFromOidc(serviceToken: string, oidcSub: string) : Promise<User | ApiError>{
-  const res = await fetch(getLocalUrl(`/users?oidcSub=${oidcSub}`),
-    {
-      headers: {
-        user_token: serviceToken,
-        cookie: `user_token=${serviceToken};`
-      },
-      dispatcher: serviceAgent
-    } as RequestInit
-  )
+  let res = undefined;
+  try {
+    res = await fetch(getLocalUrl(`/users?oidcSub=${oidcSub}`),
+      {
+        headers: {
+          user_token: serviceToken,
+          cookie: `user_token=${serviceToken};`
+        },
+        dispatcher: serviceAgent
+      } as RequestInit
+    )
+  } catch (err) {
+    console.log("POST /auth userGetFromOidc error:", err)
+    return {
+      status: 500,
+      response: {}
+    }
+  }
   if(res.status != 200) {
     return {
       status: res.status,
@@ -84,16 +93,25 @@ async function userGetFromOidc(serviceToken: string, oidcSub: string) : Promise<
 }
 
 async function userCreate(serviceToken: string, newUser: {friendlyName: string, oidcSub: string}) : Promise<User | ApiError> {
-  const res = await fetch(getLocalUrl('/users'), {
-    method: "POST",
-    body: JSON.stringify(newUser),
-    headers: {
-      "Content-type": "application/json; charset=UTF-8",
-      cookie: `user_token=${serviceToken};`
-    },
-    dispatcher: serviceAgent
-    } as any
-  )
+  let res = undefined;
+  try {
+    res = await fetch(getLocalUrl('/users'), {
+      method: "POST",
+      body: JSON.stringify(newUser),
+      headers: {
+        "Content-type": "application/json; charset=UTF-8",
+        cookie: `user_token=${serviceToken};`
+      },
+      dispatcher: serviceAgent
+      } as RequestInit
+    )
+  } catch (err) {
+    console.log("POST /auth userCreate error:", err)
+    return {
+      status: 500,
+      response: {}
+    }
+  }
   if(res.status != 201) {
     return {
       status: res.status,
