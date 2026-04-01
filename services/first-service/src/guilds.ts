@@ -4,14 +4,14 @@ import { requireAuth } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 import { generateSnowflake } from './snowflake.js';
 
-interface Guild {
+export interface Guild {
     _id: string;
     friendlyName: string;
     members: string[];
     channels: [{ friendlyName: string; _id: string }];
 }
 
-interface Message {
+export interface Message {
     _id: string;
     channelID: string;
     authorID: string;
