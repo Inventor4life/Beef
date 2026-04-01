@@ -8,7 +8,7 @@ export interface Guild {
     _id: string;
     friendlyName: string;
     members: string[];
-    channels: [{ friendlyName: string; _id: string }];
+    channels: { friendlyName: string; _id: string }[];
 }
 
 export interface Message {
