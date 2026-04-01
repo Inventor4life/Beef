@@ -61,7 +61,8 @@ switch(process.env.APP_ENV) {
 
 const serviceAgent = new Agent({ // Https agent so that this service can call its own endpoints.
   connect: {
-    ca: cert
+    ca: cert,
+		rejectUnauthorized: false
   }
 })
 authUseAgent(serviceAgent);
