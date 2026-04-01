@@ -52,7 +52,11 @@ let thisServiceToken = generateServiceToken();
 //
 
 // Convert local url to absolute. May be modified to perform DNS lookup for multiple services?
-const getLocalUrl = (path: string) => `https://localhost:3000${path}`;
+let localUrlPrefix: string = "https://localhost:3000"
+export function setLocalUrlPrefix(localUrl: string) {
+  localUrlPrefix = localUrl
+}
+const getLocalUrl = (path: string) => localUrlPrefix + path;
 
 let serviceAgent: Agent | null = null;
 export function authUseAgent(newAgent: Agent) {

@@ -9,7 +9,7 @@ import fs from "fs";
 import messageRoutes, { initMessages } from "./messages.js";
 import guildRoutes from "./guilds.js";
 import userRoutes from "./users.js"
-import { authRoutes, authUseAgent } from "./auth.js";
+import { authRoutes, authUseAgent, setLocalUrlPrefix } from "./auth.js";
 
 // I would rather the process title be set in the startup script, but we haven't gotten that working reliably.
 // My gut says this service should have little to no concept of what the process title is, because it doesn't yet need
@@ -44,6 +44,7 @@ switch(process.env.APP_ENV) {
 		PORT = 3000;
     key = fs.readFileSync("/prod/certs/first-service.key");
     cert = fs.readFileSync("/prod/certs/first-service.crt");
+		setLocalUrlPrefix("https://test.goodecodes.com:3000")
 	break;
 	case "DEVELOPMENT":	
 		console.log("Started as Development");
@@ -51,6 +52,7 @@ switch(process.env.APP_ENV) {
 		PORT = 3000;
     key = fs.readFileSync(path.resolve(PATH_THIS_FILE, "../../../tools/dev-certs/devcert1.key")); // /services/first-service/src/main.ts -> /tools/dev-certs/devcert1.key
     cert = fs.readFileSync(path.resolve(PATH_THIS_FILE, "../../../tools/dev-certs/devcert1.crt"));
+		setLocalUrlPrefix("https://localhost:3000")
 	break;
 	default:
 		console.log(`Unknown environment ${process.env.APP_ENV}`);
