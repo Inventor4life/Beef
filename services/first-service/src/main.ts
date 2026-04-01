@@ -44,7 +44,7 @@ switch(process.env.APP_ENV) {
 		PORT = 3000;
     key = fs.readFileSync("/prod/certs/first-service.key");
     cert = fs.readFileSync("/prod/certs/first-service.crt");
-		setLocalUrlPrefix("https://test.goodecodes.com:3000")
+		setLocalUrlPrefix("https://10.0.0.6:3000")
 	break;
 	case "DEVELOPMENT":	
 		console.log("Started as Development");
