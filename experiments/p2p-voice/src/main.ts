@@ -23,6 +23,8 @@ const server = https.createServer({key: key, cert: cert}, app).listen(PORT, HOST
   console.log("listening on", HOST, PORT)
 })
 
+
+// From https://medium.com/@ashubhai/webrtc-applications-with-node-js-and-react-js-7f4d4313bace
 const wss = new WebSocketServer({server:server})
 let senderSocket: WebSocket | null = null;
 let receiverSocket: WebSocket | null = null;

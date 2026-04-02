@@ -13,10 +13,15 @@
     let signalServer = new WebSocket("/");
 
     signalServer.addEventListener("message", async (event) => {
-      let message = JSON.parse(event.data)
+      let message = undefined;
+      try {
+        message = JSON.parse(event.data)
+      } catch (err) {
+        console.log("Invalid JSON received from server:", err)
+        return;
+      }
       if(message.type === "createOffer" && !isSender) {
         console.log("received offer")
-        console.log(JSON.stringify(message.sdp))
         awaiting = false
         const remoteDesc = new RTCSessionDescription(message.sdp)
         await pc.setRemoteDescription(remoteDesc)
