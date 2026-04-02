@@ -30,12 +30,13 @@ router.get('/guilds/:guildID', requireAuth, async (req: Request, res: Response) 
         res.status(503).json({ error: "database not connected" });
         return;
     }
-    const guildID = req.params.guildID;
+    const guildIDUnpadded = req.params.guildID;
     // confirm it is string for mongodb, have to do or else ts error
-    if (!guildID || typeof guildID !== 'string') {
+    if (!guildIDUnpadded || typeof guildIDUnpadded !== 'string') {
         res.status(500).json({ error: "guildID is required and must be a string" });
         return;
     }
+    const guildID = guildIDUnpadded.padStart(20, "0");
     try {
         // mongodb expects _id to be objectID generically
         // however in db it is actually string
@@ -59,20 +60,24 @@ router.post('/guilds/:guildID/channels/:channelID/messages', requireAuth, async 
         return;
     }
 
-    const guildID = req.params.guildID;
-    const channelID = req.params.channelID;
+    const guildIDUnpadded = req.params.guildID;
+    const channelIDUnpadded = req.params.channelID;
     
     // validate guildID is string
-    if (!guildID || typeof guildID !== 'string') {
+    if (!guildIDUnpadded || typeof guildIDUnpadded !== 'string') {
         res.status(500).json({ error: "guildID is required and must be a string" });
         return;
     }
 
+    const guildID = guildIDUnpadded.padStart(20, "0");
+
     // same for channelID
-    if (!channelID || typeof channelID !== 'string') {
+    if (!channelIDUnpadded || typeof channelIDUnpadded !== 'string') {
         res.status(500).json({ error: "channelID is required and must be a string" });
         return;
     }
+
+    const channelID = channelIDUnpadded.padStart(20, "0");
 
     try {
         // find guild
@@ -128,20 +133,24 @@ router.get('/guilds/:guildID/channels/:channelID/messages', requireAuth, async (
         return;
     }
 
-    const guildID = req.params.guildID;
-    const channelID = req.params.channelID;
+    const guildIDUnpadded = req.params.guildID;
+    const channelIDUnpadded = req.params.channelID;
 
     // validate guildID is string
-    if (!guildID || typeof guildID !== 'string') {
+    if (!guildIDUnpadded || typeof guildIDUnpadded !== 'string') {
         res.status(500).json({ error: "guildID is required and must be a string" });
         return;
     }
 
+    const guildID = guildIDUnpadded.padStart(20, "0");
+
     // same for channelID
-    if (!channelID || typeof channelID !== 'string') {
+    if (!channelIDUnpadded || typeof channelIDUnpadded !== 'string') {
         res.status(500).json({ error: "channelID is required and must be a string" });
         return;
     }
+
+    const channelID = channelIDUnpadded.padStart(20, "0");
 
     try {
         // find guild
