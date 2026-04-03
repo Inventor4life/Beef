@@ -102,6 +102,50 @@
   return m ? decodeURIComponent(m[2]) : "";
 }
 
+      async function apiGetUserShort(userID) {
+        // TODO: Validate userID here.
+        try {
+          const res = await fetch(`/users/${userID}/short`, { credentials: "include" });
+          if (!res.ok) {
+            console.log("API: GET /users/.../short failed with code", res.status)
+            return null;
+          }
+
+          // Verify API result
+          let potentialUser = await res.json();
+          if("_id" in potentialUser && "friendlyName" in potentialUser) {
+            return {_id:potentialUser._id, friendlyName:potentialUser.friendlyName}
+          } else {
+            console.log("API: GET /users/.../short returned invalid data:", JSON.stringify(potentialUser))
+            return null
+          }
+        } catch (err) {
+          console.log("API: GET /users/.../short fetch failed with error", err)
+          return null
+        }
+        console.log("API: GET /users/.../short uncaught code branch?")
+        return null // This should never be reached, but just in case.
+      }
+
+      // Gets a user from ID. Uses a cache to avoid making extra calls.
+      let userCache = Map()
+      async function getUser(userID) {
+        const defaultName = "Unknown"
+        let result = userMap.get(userID)
+        if(result === undefined) {
+          // User not found in cache. Fetch user
+          const potentialUser = await apiGetUserShort(userID)
+          if(potentialUser === null) {
+            // An error occured
+            return defaultName
+          } // else
+          // Successfully got user. Insert into cache
+          userCache.set(potentialUser._id, potentialUser)
+          return potentialUser
+        }
+        return result // User found in cache
+      }
+
       function setCookie(name, value, opts = {}) {
         const parts = [
           `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
