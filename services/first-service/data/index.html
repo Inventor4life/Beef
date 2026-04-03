@@ -103,9 +103,10 @@
       }
 
       async function addMsgAuthorName(msg) {
-        if(!"authorFriendlyName" in msg && "authorID" in msg) {
-          msg.authorFriendlyName = await getUser(msg.authorID)
+        if(!("authorFriendlyName" in msg) && "authorID" in msg) {
+          msg.authorFriendlyName = await getUser(msg.authorID).friendlyName
         }
+        return msg
       }
 
       async function apiGetUserShort(userID) {
