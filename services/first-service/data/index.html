@@ -480,7 +480,7 @@
         // On new messages, only scroll if already at bottom. This lets users scroll up to view historical messages, without getting "snapped back" every time a new message is sent.
         const el = msgScrollRef.current;
         if (el && !scrollToBottom.current) { // Only change scrollToBottom if it is currently off, rather than risk overwriting a true value with false
-          scrollToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight > 10;
+          scrollToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 10;
         }
 
         // scrollToBottom consumer
