@@ -77,6 +77,12 @@
         min-height: 320px;
         max-height: 420px;
         overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .messages-scroll .list {
+        margin-top: auto;
       }
     </style>
   </head>
@@ -394,7 +400,7 @@
         const [selectedGuild, setSelectedGuild] = useState(null);
         const [selectedChannel, setSelectedChannel] = useState(null);
         const [messages, setMessages] = useState([]);
-        
+
           async function loadGuilds() {
             try {
               const data = await apiGetMyGuilds();
@@ -433,7 +439,16 @@
               }
               const processedMsgs = await Promise.all(msgs.map(async (msg) => {
                 return await addMsgAuthorName(msg)
-              }))
+              })).sort((a,b)=> {
+                // Uses snowflakes as _id, sort with newest message at the end of the array.
+                if (a._id < b._id) {
+                  return -1
+                } else if (a._id === b._id) {
+                  return 0 // This should never happen, in theory.
+                } else {
+                  return 1
+                }
+              })
               setMessages(processedMsgs);
             } catch (e) {
               setStatus({ kind: "error", msg: e?.message ?? String(e) });
