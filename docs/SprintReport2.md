@@ -3,10 +3,12 @@
 [https://youtu.be/-QXSCiDFX8Y](https://youtu.be/-QXSCiDFX8Y)
 
 ## What's New (User Facing)
-* The MVP is Live (from our VPN)!
-* You can log in with Google
-* You can send basic messages
-* You can view messages sent by you and other users
+* Added Guild functionality
+* Added Guild list for swapping between Guilds
+* Added Guild channels
+* Added channel list for swapping between channels within a Guild
+* Changed messages to display top to bottom
+* UI overhaul to incorporate the Guild and channel functionality
 ## Work Summary (Developer Facing)
 In order to store an access messages across restarts of the production service, we set up a virtual machine to host
  mongoDB. A surprising number of steps went into this, more so than are ordinarily required to set up mongoDB. We had
