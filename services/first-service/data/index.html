@@ -128,7 +128,7 @@
       }
 
       // Gets a user from ID. Uses a cache to avoid making extra calls.
-      let userCache = Map()
+      let userCache = new Map()
       async function getUser(userID) {
         const defaultName = "Unknown"
         let result = userMap.get(userID)
