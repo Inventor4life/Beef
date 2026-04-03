@@ -11,7 +11,7 @@
     <style>
       :root { color-scheme: light; }
       body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #0b0b0f; color: #f5f5f7; }
-      .wrap { max-width: 880px; margin: 0 auto; padding: 28px 18px; }
+      .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 18px; }
       .card { background: #141420; border: 1px solid #26263a; border-radius: 16px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
       .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
       h1 { margin: 0 0 8px; font-size: 22px; }
@@ -34,6 +34,50 @@
       a { color: #a7c5ff; text-decoration: none; }
       a:hover { text-decoration: underline; }
       .footer { margin-top: 14px; font-size: 12px; color: #9a9ab2; }
+      .chat-layout {
+        display: grid;
+        grid-template-columns: 180px 220px 1fr;
+        gap: 14px;
+        min-height: 500px;
+      }
+
+      .sidebar,
+      .messages-panel {
+        background: #10101a;
+        border: 1px solid #26263a;
+        border-radius: 14px;
+        padding: 12px;
+      }
+
+      .sidebar-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #cfcfe6;
+        margin-bottom: 10px;
+      }
+
+      .sidebar-item {
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .sidebar-item.active {
+        border-color: #4b63ff;
+        background: #1a1f35;
+      }
+
+      .messages-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .messages-scroll {
+        flex: 1;
+        min-height: 320px;
+        max-height: 420px;
+        overflow-y: auto;
+      }
     </style>
   </head>
 
@@ -119,28 +163,50 @@
         const data = await res.json();
         return data?.user ?? null;
       }
-      async function apiGetMessages() {
-          const res = await fetch("/messages", { credentials: "include" });
-          if (res.status === 401) return null;
-          if (!res.ok) throw new Error(`GET /messages failed (${res.status})`);
-          const data = await res.json();
-          return Array.isArray(data) ? data : [];
+      async function apiGetCurrentUserRecord() {
+        const res = await fetch("/users/me", { credentials: "include" });
+        if (res.status === 401) return null;
+        if (!res.ok) throw new Error(`GET /users/me failed (${res.status})`);
+        return await res.json();
       }
-      async function apiPostMessage(content) {
-          const res = await fetch("/messages", {
+
+      async function apiGetMyGuilds() {
+        const me = await apiGetCurrentUserRecord();
+        if (me === null) return null;
+
+        const guildIds = Array.isArray(me.guildMemberships) ? me.guildMemberships : [];
+        const guilds = await Promise.all(guildIds.map(id => apiGetGuild(id)));
+        return guilds.filter(Boolean);
+      }
+      async function apiGetGuild(guildId) {
+        const res = await fetch(`/guilds/${guildId}`, { credentials: "include" });
+        if (res.status === 401) return null;
+        if (!res.ok) throw new Error(`GET /guilds/${guildId} failed (${res.status})`);
+        return await res.json();
+      }
+      async function apiGetChannelMessages(guildId, channelId) {
+        const res = await fetch(`/guilds/${guildId}/channels/${channelId}/messages`, {
+          credentials: "include"
+        });
+        if (res.status === 401) return null;
+        if (!res.ok) throw new Error(`GET messages failed (${res.status})`);
+        return await res.json();
+      }
+      async function apiPostChannelMessage(guildId, channelId, content) {
+        const res = await fetch(`/guilds/${guildId}/channels/${channelId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ content }), // IMPORTANT: backend expects { content }
-          });
-          if (res.status === 401) return null;
-          if (!res.ok) {
+          body: JSON.stringify({ content }),
+        });
+        if (res.status === 401) return null;
+        if (!res.ok) {
           const t = await res.text().catch(() => "");
-          throw new Error(`POST /messages failed (${res.status}). ${t}`.trim());
-          }
-          return await res.json(); // {id, author, content}
+          throw new Error(`POST message failed (${res.status}). ${t}`.trim());
+        }
+        return await res.json();
       }
-
+      
       function getRoute() {
         const h = window.location.hash || "#/login";
         if (h.startsWith("#/messages")) return "messages";
@@ -267,31 +333,60 @@
       }
 
       function MessagesPage({ user, setUser, setStatus }) {
-        const [loading, setLoading] = useState(true);   // only for initial load
-        const [syncing, setSyncing] = useState(false);  
-        const [text, setText] = useState("");
-        const [items, setItems] = useState([]);
+        const [showCreateGuild, setShowCreateGuild] = useState(false);
+        const [newGuildName, setNewGuildName] = useState("");
+        const [loading, setLoading] = useState(true);
+        const [syncing, setSyncing] = useState(false);
         const [meLoading, setMeLoading] = useState(false);
+        const [text, setText] = useState("");
+        const [guilds, setGuilds] = useState([]);
+        const [selectedGuild, setSelectedGuild] = useState(null);
+        const [selectedChannel, setSelectedChannel] = useState(null);
+        const [messages, setMessages] = useState([]);
         
+          async function loadGuilds() {
+            try {
+              const data = await apiGetMyGuilds();
+              if (data === null) {
+                setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+                window.location.hash = "#/login";
+                return;
+              }
 
+              setGuilds(data);
+
+              if (data.length > 0) {
+                const firstGuild = data[0];
+                setSelectedGuild(firstGuild);
+                setSelectedChannel(firstGuild.channels?.[0] ?? null);
+              }
+            } catch (e) {
+              setStatus({ kind: "error", msg: e?.message ?? String(e) });
+            }
+          }
           async function loadMessages({ silent = false } = {}) {
-               if (silent) setSyncing(true);
-               else setLoading(true);
+            if (!selectedGuild?._id || !selectedChannel?._id) {
+              setMessages([]);
+              return;
+            }
 
-               try {
-                    const msgs = await apiGetMessages();
-                    if (msgs === null) {
-                         setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
-                         window.location.hash = "#/login";
-                         return;
-                    }
-                    setItems(msgs);
-               } catch (e) {
-                    setStatus({ kind: "error", msg: e?.message ?? String(e) });
-               } finally {
-                    if (silent) setSyncing(false);
-                    else setLoading(false);
-               }
+            if (silent) setSyncing(true);
+            else setLoading(true);
+
+            try {
+              const msgs = await apiGetChannelMessages(selectedGuild._id, selectedChannel._id);
+              if (msgs === null) {
+                setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+                window.location.hash = "#/login";
+                return;
+              }
+              setMessages(msgs);
+            } catch (e) {
+              setStatus({ kind: "error", msg: e?.message ?? String(e) });
+            } finally {
+              if (silent) setSyncing(false);
+              else setLoading(false);
+            }
           }
 
         useEffect(() => {
@@ -307,45 +402,52 @@
                }
 
                setUser(me);
-               await loadMessages({ silent: false });
+               await loadGuilds();
           })();
         }, [setStatus, setUser]);
         useEffect(() => {
+          if (!selectedGuild?._id || !selectedChannel?._id) return;
+
           let stopped = false;
           let inFlight = false;
 
           const t = setInterval(async () => {
-               if (stopped || inFlight) return;
-                    inFlight = true;
-               try {
-                    await loadMessages({ silent: true });
-               } finally {
-                    inFlight = false;
-               }
+            if (stopped || inFlight) return;
+            inFlight = true;
+            try {
+              await loadMessages({ silent: true });
+            } finally {
+              inFlight = false;
+            }
           }, 1000);
 
           return () => {
-               stopped = true;
-               clearInterval(t);
+            stopped = true;
+            clearInterval(t);
           };
-     }, []);
+        }, [selectedGuild?._id, selectedChannel?._id]);
 
         async function addMessage() {
           const content = text.trim();
-          if (!content) return;
+          if (!content || !selectedGuild?._id || !selectedChannel?._id) return;
 
           try {
-               const created = await apiPostMessage(content);
-               if (created === null) {
-                    setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
-                    window.location.hash = "#/login";
-                    return;
-               }
+            const created = await apiPostChannelMessage(
+              selectedGuild._id,
+              selectedChannel._id,
+              content
+            );
 
-               setText("");
-               setItems(prev => [...prev, created]); // append new one
+            if (created === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
+
+            setText("");
+            setMessages(prev => [...prev, created]);
           } catch (e) {
-               setStatus({ kind: "error", msg: e?.message ?? String(e) });
+            setStatus({ kind: "error", msg: e?.message ?? String(e) });
           }
         }
 
@@ -357,8 +459,6 @@
               </div>
               <button
                 onClick=${async () => {
-                  // No logout endpoint exists in your server right now (cookie is httpOnly),
-                  // so we can only “soft logout” the UI.
                   setUser(null);
                   setStatus({ kind: "idle", msg: "" });
                   window.location.hash = "#/login";
@@ -370,38 +470,98 @@
 
             <div className="spacer"></div>
 
-            <div className="muted">
-              This is a front-end Messages UI.
+            <div className="chat-layout">
+              <div className="sidebar">
+                <div className="sidebar-title">Guilds</div>
+                <ul className="list">
+                  ${guilds.map(g => html`
+                    <li
+                      key=${g._id}
+                      className=${`item sidebar-item ${selectedGuild?._id === g._id ? "active" : ""}`}
+                      onClick=${() => {
+                        setSelectedGuild(g);
+                        setSelectedChannel(g.channels?.[0] ?? null);
+                      }}
+                    >
+                      ${g.friendlyName}
+                    </li>
+                  `)}
+                </ul>
+              </div>
+
+              <div className="sidebar">
+                <div className="sidebar-title">
+                  ${selectedGuild ? selectedGuild.friendlyName : "Channels"}
+                </div>
+
+
+                ${showCreateGuild && html`
+                  <div className="spacer"></div>
+                  <div className="row">
+                    <input
+                      style=${{ flex: 1 }}
+                      placeholder="Guild name..."
+                      value=${newGuildName}
+                      onInput=${(e) => setNewGuildName(e.target.value)}
+                    />
+                    <button
+                      onClick=${() => {
+                        setStatus({ kind: "error", msg: "Create guild is not available because the backend has no POST /guilds route yet." });
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                `}
+
+                <div className="spacer"></div>
+
+                <ul className="list">
+                  ${(selectedGuild?.channels ?? []).map(c => html`
+                    <li
+                      key=${c._id}
+                      className=${`item sidebar-item ${selectedChannel?._id === c._id ? "active" : ""}`}
+                      onClick=${() => setSelectedChannel(c)}
+                    >
+                      # ${c.friendlyName}
+                    </li>
+                  `)}
+                </ul>
+              </div>
+
+              <div className="messages-panel">
+                <div className="sidebar-title">
+                  ${selectedChannel ? `# ${selectedChannel.friendlyName}` : "Select a channel"}
+                </div>
+
+                <div className="messages-scroll">
+                  ${loading && messages.length === 0
+                    ? html`<div className="muted">Loading messages…</div>`
+                    : html`
+                        <ul className="list">
+                          ${messages.map(m => html`
+                            <li key=${String(m._id)} className="item">
+                              <div className="muted"><b>${m.authorID ?? "Unknown"}</b> • #${m._id ?? ""}</div>
+                              <div>${m.content ?? ""}</div>
+                            </li>
+                          `)}
+                        </ul>
+                      `}
+                </div>
+
+                <div className="row">
+                  <input
+                    style=${{ flex: 1, minWidth: "240px" }}
+                    placeholder=${selectedChannel ? `Message #${selectedChannel.friendlyName}` : "Select a channel first"}
+                    value=${text}
+                    disabled=${!selectedChannel}
+                    onInput=${(e) => setText(e.target.value)}
+                    onKeyDown=${(e) => { if (e.key === "Enter") addMessage(); }}
+                  />
+                  <button onClick=${addMessage} disabled=${!selectedChannel}>Send</button>
+                </div>
+              </div>
             </div>
-
-            <div className="spacer"></div>
-
-            <div className="row">
-              <input
-                style=${{ flex: 1, minWidth: "240px" }}
-                placeholder="Type a message..."
-                value=${text}
-                onInput=${(e) => setText(e.target.value)}
-                onKeyDown=${(e) => { if (e.key === "Enter") addMessage(); }}
-              />
-              <button onClick=${addMessage}>Send</button>
-            </div>
-
-            <div className="spacer"></div>
-
-            ${loading && items.length === 0
-               ? html`<div className="muted">Loading messages…</div>`
-               : html`
-
-                  <ul className="list">
-                    ${items.map(m => html`
-                      <li key=${String(m.id ?? m._id)} className="item">
-                         <div className="muted"><b>${m.author ?? "Unknown"}</b> • #${m.id ?? ""}</div>
-                         <div>${m.content ?? ""}</div>
-                      </li>
-                    `)}
-                 </ul>
-               `}
           </div>
         `;
       }
