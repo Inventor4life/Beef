@@ -437,9 +437,9 @@
                 window.location.hash = "#/login";
                 return;
               }
-              const processedMsgs = await Promise.all(msgs.map(async (msg) => {
+              const processedMsgs = (await Promise.all(msgs.map(async (msg) => {
                 return await addMsgAuthorName(msg)
-              })).sort((a,b)=> {
+              }))).sort((a,b)=> {
                 // Uses snowflakes as _id, sort with newest message at the end of the array.
                 if (a._id < b._id) {
                   return -1
