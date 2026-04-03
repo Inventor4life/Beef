@@ -102,6 +102,12 @@
         return m ? decodeURIComponent(m[2]) : "";
       }
 
+      async function addMsgAuthorName(msg) {
+        if(!"authorFriendlyName" in msg && "authorID" in msg) {
+          msg.authorFriendlyName = await getUser(msg.authorID)
+        }
+      }
+
       async function apiGetUserShort(userID) {
         // TODO: Validate userID here.
         try {
@@ -424,7 +430,10 @@
                 window.location.hash = "#/login";
                 return;
               }
-              setMessages(msgs);
+              const processedMsgs = await Promise.all(msgs.map(async (msg) => {
+                msg = await addMsgAuthorName(msg)
+              }))
+              setMessages(processedMsgs);
             } catch (e) {
               setStatus({ kind: "error", msg: e?.message ?? String(e) });
             } finally {
@@ -489,7 +498,8 @@
             }
 
             setText("");
-            setMessages(prev => [...prev, created]);
+            const processedMsg = await addMsgAuthorName(created)
+            setMessages(prev => [...prev, processedMsg]);
           } catch (e) {
             setStatus({ kind: "error", msg: e?.message ?? String(e) });
           }
@@ -585,7 +595,7 @@
                         <ul className="list">
                           ${messages.map(m => html`
                             <li key=${String(m._id)} className="item">
-                              <div className="muted"><b>${getUser(m.authorID)?? "Unknown"}</b> • #${m._id ?? ""}</div>
+                              <div className="muted"><b>${m.authorFriendlyName?? "Unknown"}</b> • #${m._id ?? ""}</div>
                               <div>${m.content ?? ""}</div>
                             </li>
                           `)}
