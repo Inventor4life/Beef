@@ -277,7 +277,7 @@
         useEffect(() => {
           // If already signed in (cookie exists), jump to messages.
           (async () => {
-            const me = await fetchMe();
+            const me = await apiGetCurrentUserRecord();
             if (me) {
               setUser(me);
               window.location.hash = "#/chat";
@@ -303,7 +303,7 @@
           ${route === "login"
                ? html`<${LoginPage}
                     onAuthed=${async () => {
-                         const me = await fetchMe();
+                         const me = await apiGetCurrentUserRecord();
                          if (me) setUser(me);
                          window.location.hash = "#/chat";
                      }}
@@ -445,7 +445,7 @@
         useEffect(() => {
           (async () => {
                setMeLoading(true);
-               const me = await fetchMe();
+               const me = await apiGetCurrentUserRecord();
                setMeLoading(false);
 
                if (!me) {
