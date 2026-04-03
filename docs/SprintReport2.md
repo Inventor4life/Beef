@@ -1,6 +1,6 @@
-# Sprint 1 Report (2/23/2026 - 3/1/2026)
+# Sprint 2 Report (3/2/2026 - 4/4/2026)
 ## Demo video:
-[https://youtu.be/-QXSCiDFX8Y](https://youtu.be/-QXSCiDFX8Y)
+
 
 ## What's New (User Facing)
 * Added Guild functionality
