@@ -400,7 +400,8 @@
         const [selectedGuild, setSelectedGuild] = useState(null);
         const [selectedChannel, setSelectedChannel] = useState(null);
         const [messages, setMessages] = useState([]);
-        const msgScrollRef = useRef(null)
+        const msgScrollRef = useRef(null)   // reference to get/set the current scroll state of the message history box.
+        const scrollToBottom = useRef(false) // an "event" that can be triggered to scroll the user to the bottom of the message box
 
           async function loadGuilds() {
             try {
@@ -477,16 +478,17 @@
         }, [setStatus, setUser]);
 
         // On new messages, only scroll if already at bottom. This lets users scroll up to view historical messages, without getting "snapped back" every time a new message is sent.
-        let scrollingHistorical = false;
         const el = msgScrollRef.current;
-        if (el) {
-          scrollingHistorical = el.scrollHeight - el.scrollTop - el.clientHeight > 10;
+        if (el && !scrollToBottom.current) { // Only change scrollToBottom if it is currently off, rather than risk overwriting a true value with false
+          scrollToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight > 10;
         }
 
+        // scrollToBottom consumer
         useLayoutEffect(() => {
           const el = msgScrollRef.current;
           if (!el || messages.length === 0) return;
-          if (scrollingHistorical) {
+          if (scrollToBottom.current) {
+            scrollToBottom.current = false;
             el.scrollTop = el.scrollHeight;
           }
         }, [messages]);
@@ -532,7 +534,15 @@
 
             setText("");
             const processedMsg = await addMsgAuthorName(created)
+            // Claude claims that we need to set this before setMessages because React may try to re-render the page.
+            //  I don't think that is correct because javascript is single-threaded to the best of my knowledge, and
+            //  trying to re-render a page while we are still rendering it doesn't make sense to me (How would that even work?)
+            // However, these testing-in-prod commits are the first time I have ever used react, so I may be wrong.
+            // I don't believe it hurst to set scrollToBottom up here. If anyone can give me a definite answer, that
+            //  would be greatly appreciated.
+            scrollToBottom.current = true
             setMessages(prev => [...prev, processedMsg]);
+            //scrollToBottom.current = true
           } catch (e) {
             setStatus({ kind: "error", msg: e?.message ?? String(e) });
           }
