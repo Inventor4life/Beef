@@ -400,6 +400,7 @@
         const [selectedGuild, setSelectedGuild] = useState(null);
         const [selectedChannel, setSelectedChannel] = useState(null);
         const [messages, setMessages] = useState([]);
+        const msgScrollRef = useRef(null)
 
           async function loadGuilds() {
             try {
@@ -474,6 +475,24 @@
                await loadGuilds();
           })();
         }, [setStatus, setUser]);
+
+        // On new messages, only scroll if already at bottom. This lets users scroll up to view historical messages, without getting "snapped back" every time a new message is sent.
+        useEffect(() => {
+          const el = msgScrollRef.current;
+          if (!el) return;
+          const scrollingHistorical = el.scrollHeight - el.scrollTop - el.clientHeight > 10;
+          if (!scrollingHistorical) {
+            el.scrollTop = el.scrollHeight;
+          }
+        }, [messages]);
+
+        useEffect(()=> {
+          // Scroll to bottom of message box on page load
+          if (msgScrollRef.current) {
+            msgScrollRef.current.scrollTop = msgScrollRef.current.scrollHeight;
+          }
+        }, []);
+
         useEffect(() => {
           if (!selectedGuild?._id || !selectedChannel?._id) return;
 
@@ -604,7 +623,7 @@
                   ${selectedChannel ? `# ${selectedChannel.friendlyName}` : "Select a channel"}
                 </div>
 
-                <div className="messages-scroll">
+                <div className="messages-scroll" ref=${msgScrollRef}>
                   ${loading && messages.length === 0
                     ? html`<div className="muted">Loading messages…</div>`
                     : html`
