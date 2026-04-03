@@ -432,7 +432,7 @@
                 return;
               }
               const processedMsgs = await Promise.all(msgs.map(async (msg) => {
-                msg = await addMsgAuthorName(msg)
+                return await addMsgAuthorName(msg)
               }))
               setMessages(processedMsgs);
             } catch (e) {
