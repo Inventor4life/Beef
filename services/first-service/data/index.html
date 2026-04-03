@@ -97,10 +97,10 @@
       const AUTH_POST_URL = new URL("/auth", window.location.origin).toString();
 
       function getCookie(name) {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = document.cookie.match(new RegExp("(^|;\\s*)" + escaped + "=([^;]*)"));
-  return m ? decodeURIComponent(m[2]) : "";
-}
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const m = document.cookie.match(new RegExp("(^|;\\s*)" + escaped + "=([^;]*)"));
+        return m ? decodeURIComponent(m[2]) : "";
+      }
 
       async function apiGetUserShort(userID) {
         // TODO: Validate userID here.
@@ -499,7 +499,7 @@
           <div>
             <div className="row">
               <div className="muted">
-                ${meLoading ? "Checking session..." : user ? html`Signed in as <b>${user.name ?? "Unknown"}</b>` : "Signed in"}
+                ${meLoading ? "Checking session..." : user ? html`Signed in as <b>${user.friendlyName ?? "Unknown"}</b>` : "Signed in"}
               </div>
               <button
                 onClick=${async () => {
@@ -585,7 +585,7 @@
                         <ul className="list">
                           ${messages.map(m => html`
                             <li key=${String(m._id)} className="item">
-                              <div className="muted"><b>${m.authorID ?? "Unknown"}</b> • #${m._id ?? ""}</div>
+                              <div className="muted"><b>${getUser(m.authorID)?? "Unknown"}</b> • #${m._id ?? ""}</div>
                               <div>${m.content ?? ""}</div>
                             </li>
                           `)}
