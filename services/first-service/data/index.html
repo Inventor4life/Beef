@@ -253,7 +253,7 @@
       
       function getRoute() {
         const h = window.location.hash || "#/login";
-        if (h.startsWith("#/messages")) return "messages";
+        if (h.startsWith("#/chat")) return "messages";
         return "login";
       }
 
@@ -274,7 +274,7 @@
             const me = await fetchMe();
             if (me) {
               setUser(me);
-              window.location.hash = "#/messages";
+              window.location.hash = "#/chat";
             }
           })();
         }, []);
@@ -299,7 +299,7 @@
                     onAuthed=${async () => {
                          const me = await fetchMe();
                          if (me) setUser(me);
-                         window.location.hash = "#/messages";
+                         window.location.hash = "#/chat";
                      }}
                      setStatus=${setStatus}
                     />`
