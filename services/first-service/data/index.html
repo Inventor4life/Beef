@@ -477,21 +477,19 @@
         }, [setStatus, setUser]);
 
         // On new messages, only scroll if already at bottom. This lets users scroll up to view historical messages, without getting "snapped back" every time a new message is sent.
-        useEffect(() => {
+        let scrollingHistorical = false;
+        const el = msgScrollRef.current;
+        if (el) {
+          scrollingHistorical = el.scrollHeight - el.scrollTop - el.clientHeight > 10;
+        }
+
+        useLayoutEffect(() => {
           const el = msgScrollRef.current;
-          if (!el) return;
-          const scrollingHistorical = el.scrollHeight - el.scrollTop - el.clientHeight > 10;
-          if (!scrollingHistorical) {
+          if (!el || messages.length === 0) return;
+          if (scrollingHistorical) {
             el.scrollTop = el.scrollHeight;
           }
         }, [messages]);
-
-        useEffect(()=> {
-          // Scroll to bottom of message box on page load
-          if (msgScrollRef.current) {
-            msgScrollRef.current.scrollTop = msgScrollRef.current.scrollHeight;
-          }
-        }, []);
 
         useEffect(() => {
           if (!selectedGuild?._id || !selectedChannel?._id) return;
