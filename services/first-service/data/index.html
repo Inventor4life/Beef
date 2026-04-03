@@ -131,7 +131,7 @@
       let userCache = new Map()
       async function getUser(userID) {
         const defaultName = "Unknown"
-        let result = userMap.get(userID)
+        let result = userCache.get(userID)
         if(result === undefined) {
           // User not found in cache. Fetch user
           const potentialUser = await apiGetUserShort(userID)
