@@ -110,21 +110,15 @@ sprint, for quality:
 ## Retrospective Summary
 
 ### Here's what went well:
-* We have been able to make our minimum viable product
+* We have been able to implement the changes we planned on for this sprint with little time pressure.
 * Everyone has managed to do their parts in time.
-* Our learning curves have gone well, with our team being able to use the new coding languages and software very fluidly.
-* Setting up the infrastructure has gone well
-* Vast improvement in using a Git Branching Development Model.
+* Communication was solid, and we were able to meet our sprint 2 goals.
+* Backend layout was intuitive for implementing in the frontend.
 
 ### Here's what we'd like to improve:
-* Communication from the team member in charge of the front-end was lacking.
-* Our UI still has some issues that need to be addressed, like messages being loaded onto the bottom of the page,
- requiring the user to scroll to access them.
-* We could have done a better job documenting expectations.
+* Our UI still has some issues that need to be addressed, like loading text appearing unnecessarily.
+* We could look into our archived issues as things to incorporate if we have extra time in the future.
 * Code quality.
-* Sticking with project deadlines.
-* Getting a better idea of project timelines, so we don't end up overscoping ourselves at the start and then slashing
- features as the deadline approaches
  
 ### Here are the changes we plan to implement in the next sprint:
 Team-based:
