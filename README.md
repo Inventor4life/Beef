@@ -119,9 +119,6 @@ Messages have the following structure:
 
 ## Known Problems
 
-- The `auth.ts` file is mostly empty — authentication logic currently lives in `main.ts` and should be refactored out (noted in `services/first-service/src/auth.ts`).
-- Message IDs are assigned incrementally in-memory and are not collision-safe across multiple service instances.
-- The frontend is minimal (a single `index.html` with a Google sign-in button) — there is no chat UI yet.
 - The process title for the service is hardcoded in `main.ts` rather than being set by the startup script (noted in source comments).
 - No automated tests exist (`npm test` currently exits with an error stub).
 - No historical messaging.
