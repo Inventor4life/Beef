@@ -116,6 +116,7 @@ sprint, for quality:
 * Backend layout was intuitive for implementing in the frontend.
 
 ### Here's what we'd like to improve:
+* Better communication across the project, not necessarily longer, but more efficient communication.
 * Our UI still has some issues that need to be addressed, like loading text appearing unnecessarily.
 * We could look into our archived issues as things to incorporate if we have extra time in the future.
 * Code quality.
