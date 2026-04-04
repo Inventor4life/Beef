@@ -101,9 +101,12 @@ Despite the security risk involved in publically committing this information, we
 
 1. **Navigate to the root URL** (`/`) — you will see a landing page.
 2. **Log in** — visit `/auth` to sign in with Google. After successful authentication, you receive a JWT stored as an HTTP-only cookie.
-3. **Send messages** — `POST /messages` with a JSON body containing `{ "content": "your message" }`. Requires authentication.
-4. **View messages** — `GET /messages` returns all messages in the database. Requires authentication.
+3. **Send messages** — `POST /guilds/channels/messages` with a JSON body containing `{ "content": "your message" }` sent to the specific channels endpoint. Requires authentication.
+4. **View messages** — `GET /guilds/channels/messages` returns all messages in the channel. Requires authentication.
 5. **Test authentication** — `GET /test-auth` returns the decoded JWT payload for the current user.
+6. **Guilds** — `Get /guilds` returns the specific guild that the user is a member of. Requires authentication.
+7. **Users** — `Get /users` returns the user information, used to determine what Guilds to get when loading Guilds. Requires authentication.
+8. **Channels** — `Get /guilds/channels` channels are arrays that each guild object contains. The frontend uses the channel array directly. Requires authentication. 
 
 Messages have the following structure:
 ```json
@@ -121,6 +124,8 @@ Messages have the following structure:
 - The frontend is minimal (a single `index.html` with a Google sign-in button) — there is no chat UI yet.
 - The process title for the service is hardcoded in `main.ts` rather than being set by the startup script (noted in source comments).
 - No automated tests exist (`npm test` currently exits with an error stub).
+- No historical messaging.
+- We are bypassing the security provided by certificates for our endpoint to endpoint api calls.
 
 ## Contributing
 
