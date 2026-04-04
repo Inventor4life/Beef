@@ -113,14 +113,14 @@ Returns the `User` structure for the currently logged-in user.
  - User must be signed in.
 
 ### Error codes:
-| Code | Cause                      |
-|------|----------------------------|
-|`200` | Success                    |
-|`400` | Malformed user token       |
-|`401` | User is not signed in      |
-|`404` | User not found             |
-|`503` | Cannot connect to database |
-|`500` | Other error                |
+| Code | Cause                             |
+|------|-----------------------------------|
+|`200` | Success                           |
+|`400` | Malformed user token              |
+|`401` | Invalid token (user not signed in)|
+|`404` | User not found                    |
+|`503` | Cannot connect to database        |
+|`500` | Other error                       |
 ---
 ---
 > GET `/users/{userID}/short`
@@ -221,13 +221,14 @@ A `User` data structure with the request information, as well as a unique `_id` 
  - The service making the request must present a valid Beef token
 
 ### Error codes:
-| Code | Cause                      |
-|------|----------------------------|
-|`201` | Resource Created           |
-|`401` | Missing Auth token         |
-|`403` | Not a backend service      |
-|`503` | Cannot connect to database |
-|`500` | Other error                |
+| Code | Cause                            |
+|------|----------------------------------|
+|`201` | Resource Created                 |
+|`400` | Invalid request (missing fields) |
+|`401` | Missing Auth token               |
+|`403` | Not a backend service            |
+|`503` | Cannot connect to database       |
+|`500` | Other error                      |
 
 ### Notes:
 Because creating/joining/leaving guilds is not required for this sprint, users will be enrolled in a handful of pre-made guilds.
@@ -261,7 +262,7 @@ Returns the `Guild` structure that matches the requested `guildID`.
 |`500` | Other error                |
 
 ### Notes:
-This method doesn't currently support bulk guild operations. This means that the front end will need to make one request per user guild during bootstrap, which will use lots of bandwidth. One option is to use a query parameter with a similar endpoint: GET `/guilds?ids=1,2,3,...` to batch the requests together.
+This method doesn't currently support bulk guild operations. This means that the front end will need to make one request per user guild during bootstrap, which will be slow. One option is to use a query parameter with a similar endpoint: GET `/guilds?ids=1,2,3,...` to batch the requests together.
 
 ---
 ---
@@ -424,7 +425,7 @@ On startup, generate a self-signed service token.
  - If `404` is received, Send POST `/users` with the required data structure to create a user; using the name provided by google's token as the `friendlyName` field.
  - Sign a Beef JWT using the returned `User` information.
  - Set that JWT as a header cookie with `Secure; Same-Site: Strict; HttpOnly` options.
- - Redirect the user to `/chat`
+ - Return `200` and redirect the user to `/chat`
 
 ---
 ---
@@ -441,6 +442,7 @@ On startup, generate a self-signed service token.
  - Query the `_id` field of the `Users` collection using the token's `sub` field.
  - Return `503` if the query failed
  - Return `404` if there was no matching user. Because we need the `_id` from the database to generate the `JWT`, having a `JWT` with a `sub` not present in the database (that isn't a service token) means that something somewhere went seriously wrong.
+ - Return `500` on unknown error
  - Otherwise, set the response body to be the `User` structure returned by the database
 
 ---
@@ -452,7 +454,8 @@ On startup, generate a self-signed service token.
  - Query the `Users` collection using the URL's `userID` field
  - Return `503` if the query failed (timed out, db is offline, etc.)
  - Return `404` if there was no matching user
- - Otherwise, set the reponse body to be the `_id` (as `userID`) and `friendlyName` fields of the `User` structure returned by the database.
+ - Return `500` on unknown error
+ - Otherwise, set the reponse body to be the `_id` (as `userID`) and `friendlyName` fields of the `User` structure returned by the database and return status `200`
 
 ---
 
@@ -464,7 +467,8 @@ Currently, same as above.
  - Query the `Users` collection using the URL's `userID` field
  - Return `503` if the query failed (timed out, db is offline, etc.)
  - Return `404` if there was no matching user
- - Otherwise, set the reponse body to be the `User` structure returned by the database
+ - Return `500` on unknown error
+ - Otherwise, set the reponse body to be the `User` structure returned by the database and return status `200`
 
 ---
 
@@ -477,7 +481,7 @@ Similar to above.
  - Query the `oidcSub` field of the `Users` collection using the URL's `?oidcSub` parameter.
  - Return `503` if the query failed (timed out, db is offline, etc.)
  - Return `404` if there was no matching user.
- - Otherwise, set the reponse body to be the `User` structure returned by the database
+ - Otherwise, set the reponse body to be the `User` structure returned by the database and return status `200`
 
 ---
 
@@ -507,6 +511,7 @@ On Startup, generate a self-signed user token.
  - Query the `Guilds` collection using the URL's `guildID` field
  - Return `503` if the query failed (timed out, db is offline, etc.)
  - Return `404` if there was no matching guild
+ - Return `500` on other error
  - Otherwise, set the reponse body to be the `Guild` structure returned by the database
 
 --- 
@@ -520,7 +525,8 @@ On Startup, generate a self-signed user token.
  - Return `404` if the guild was not found or the channel was not in the guild.
  - if the `?beforeID` parameter is present:
     - Query the database for up to 50 messages in the provided `channelID` with an `_id` less than the given value
-    - Otherwise query the database for up to 50 of the most recent messages in the provided channel.
+ - Otherwise query the database for up to 50 of the most recent messages in the provided channel.
+ - Return `500` on other error.
  - Set the response body to be an array of the `Message` structures returned by the database.
 
 Notes:
