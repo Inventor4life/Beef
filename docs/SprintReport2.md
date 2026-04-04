@@ -1,6 +1,6 @@
 # Sprint 1 Report (2/23/2026 - 3/1/2026)
 ## Demo video:
-[https://youtu.be/-QXSCiDFX8Y](https://youtu.be/-QXSCiDFX8Y)
+[https://youtu.be/SeJvwmRrb-E](https://youtu.be/SeJvwmRrb-E)
 
 ## What's New (User Facing)
 * The MVP is Live (from our VPN)!
@@ -8,36 +8,26 @@
 * You can send basic messages
 * You can view messages sent by you and other users
 ## Work Summary (Developer Facing)
-In order to store an access messages across restarts of the production service, we set up a virtual machine to host
- mongoDB. A surprising number of steps went into this, more so than are ordinarily required to set up mongoDB. We had
- to set up the virtual machine hosting software, set up a VPN to access the mongoDB VM, set up a firewall to sit
- between WAN and mongoDB, and then set up Network Address Traversal because one of our developers had a local IP
- conflict with our virtual network. In addition to this, we opted to use Terraform to manage our infrastructure, so
- multiple experiments needed to be conducted to get that functional and reliable.
+After creating our backend in the last sprint, work summary for this sprint is relatively straight forward. This Sprint
+ consisted primarily of following the specs outlined in [Sprint2Plan.md](https://github.com/Inventor4life/Beef/blob/main/docs/Sprint2Plan.md)
+ to support our new features. We created the endpoints necessary to create users, read/send messages, navigate through
+ guilds, and sign in to the service in a semi-secure fashion. On the frontend, we built upon our previous React application
+ to utilize the new endpoints. This includes getting an arbitrary number of guilds from the logged-in user, turning
+ those guilds into navigable buttons in the left sidebar, and then re-using that guild information to get channels from
+ those guilds. Finally, we added a user cache to the front end so that we were not repeatedly querying our backend for
+ information that was unlikely to change.
  
-To complement mongoDB, we decided to create a VM through terraform to manage our production services (unimaginatively
- called the production VM). To make this useful to the development team, we had to set up ssh access, user accounts,
- and a shared local github repo so that anyone can pull updates and start the service. We designed a REST API early to
- parallelize our development process, but found that certain features (like google sign-in) didn't conform to our
- original assumptions.
- 
-In summary, we created a React front-end to communicate with a Node and Express backend that in turn uses outside
- authentication services and mongoDB to allow near real-time messaging over the internet. Many barriers were faced when
- getting the app to this point, most of which involved trying to get our services to communicate over the internet.
- Since there isn't an easy way to debug packets sent between computers (that do not have packet-sniffing software
- installed), a few of our fixes consisted of tweaking various settings over the course of many hours until something
- works. The most notable examples of this include setting up the Wireguard VPN (Cloudflare not supporting udp proxy,
- WSU blocking wireguard handshakes, and the wireguard client requiring occasional restarts to implement changes all
- resulted in a non-functional VPN with no explanation or debug log.) and receiving responses from the Google OAuth
- platform (The Google Identity services library will silently refuse to POST auth tokens to non-https endpoints, and
- apparently there is a difference between `localhost` and `127.0.0.1` as far as the library is concerned.)
+In summary, we updated our React front-end to use multiple API endpoints serviced through an Express backend.
+ These endpoints allow us to sign in with an authentication service like Google, send and receive messages across 
+ multiple guilds and channels, and interface with the backend database to query user and channel information. Many 
+ barriers were faced when improving our app, but they were noticeable easier to overcome now that we can build off of the 
+ minimum viable product that was delivered last sprint. Challenges for this sprint included certificate validation over
+ inter-API calls, traceably logging errors during front- and back-end API calls, and trying to make the UX more
+ comfortable to scroll while still adding new user messages.
 
-We chose this particular tech stack because it is popular, well established, and our team has almost no experience with
- it. This is our first exposure (with the exception of react) to nearly every technology we have implemented in this
- application, including `proxmox`, `wireguard`, `opnsense`, `terraform`, `Node`, `Express`, `MongoDB`,
- `typescript`, `Json Web Tokens`, and `Google Identity Services`. We hope to showcase more progress for future sprints
- now that we have a basic app and experience with the tech stack, and we hope to integrate more tech in the future.
- We're looking to include `Envoy`, `Docker`, `Kubernetes`, a CI/CD pipeline, and `Ansible` in the upcoming builds.
+The tech stack we chose (mainly MERN in addition to a few technologies) is going quite well. We haven't gotten into
+ the CI/CD pipeline yet over concerns about local testing and how to handle failed builds, but it is something we would
+ like to explore more in the future.
 
 ## Unfinished Work
 We completed nearly everything outlined in our WA3 submission for this sprint, with the notable exception of the CI/CD
@@ -102,9 +92,13 @@ Please review the following code files, which were actively developed during thi
 sprint, for quality:
 * [main.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/main.ts)
 * [middleware.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/middleware.ts)
-* [messages.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/messages.ts)
 * [db.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/db.ts)
 * [index.html](https://github.com/Inventor4life/Beef/blob/main/services/first-service/data/index.html)
+* [auth.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/auth.ts)
+* [guilds.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/guilds.ts)
+* [snowflake.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/snowflake.ts)
+* [users.ts](https://github.com/Inventor4life/Beef/blob/main/services/first-service/src/users.ts)
+
 ## Retrospective Summary
 
 ### Here's what went well:
@@ -127,13 +121,19 @@ sprint, for quality:
 ### Here are the changes we plan to implement in the next sprint:
 Team-based:
 * More effective communication.
-* More frequent documentation.
-* Dedicate time to UI improvements.
-* Cleaning up code.
+* More thorough documentation.
 * Better overall time management.
+* Have a better idea of issue complexity/ what can be done in a sprint.
+* Go over github development practices with team
 
 Technology:
-* Add guilds
-* Add messaging channels
-* Add user sign-in (Store user log in information rather than generating JWTs for anyone who signs in)
-* Split our monolithic service into microservices
+* Add voice channels
+* Add the ability to join/leave guilds
+* Add guild invite links
+* Add private messaging
+* Add user name customization
+* Add guild administration (Kick, ban, mute)
+* Add guild customization (change name, change/rename channels)
+* Revamp frontend to be modular
+* Remove deprecated endpoints (/messages)
+* Potentially receive new messages over WebSockets in addition to the API.
