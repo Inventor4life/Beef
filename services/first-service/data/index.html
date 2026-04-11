@@ -241,10 +241,20 @@
         if (!res.ok) throw new Error(`GET /guilds/${guildId} failed (${res.status})`);
         return await res.json();
       }
-      async function apiGetChannelMessages(guildId, channelId) {
-        const res = await fetch(`/guilds/${guildId}/channels/${channelId}/messages`, {
+      async function apiGetChannelMessages(guildId, channelId, options = {}) {
+        const params = new URLSearchParams();
+
+        if (options.beforeID) {
+          params.set("beforeID", options.beforeID);
+        }
+
+        const qs = params.toString();
+        const url = `/guilds/${guildId}/channels/${channelId}/messages${qs ? `?${qs}` : ""}`;
+
+        const res = await fetch(url, {
           credentials: "include"
         });
+
         if (res.status === 401) return null;
         if (!res.ok) throw new Error(`GET messages failed (${res.status})`);
         return await res.json();
@@ -399,100 +409,223 @@
         const [guilds, setGuilds] = useState([]);
         const [selectedGuild, setSelectedGuild] = useState(null);
         const [selectedChannel, setSelectedChannel] = useState(null);
+
         const [messages, setMessages] = useState([]);
-        const msgScrollRef = useRef(null)   // reference to get/set the current scroll state of the message history box.
-        const scrollToBottom = useRef(false) // an "event" that can be triggered to scroll the user to the bottom of the message box
+        const [hasOlderMessages, setHasOlderMessages] = useState(true);
+        const [loadingOlder, setLoadingOlder] = useState(false);
 
-          async function loadGuilds() {
-            try {
-              const data = await apiGetMyGuilds();
-              if (data === null) {
-                setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
-                window.location.hash = "#/login";
-                return;
-              }
+        const msgScrollRef = useRef(null);
+        const scrollToBottom = useRef(false);
+        const preserveScrollAfterPrepend = useRef(null);
 
-              setGuilds(data);
-
-              if (data.length > 0) {
-                const firstGuild = data[0];
-                setSelectedGuild(firstGuild);
-                setSelectedChannel(firstGuild.channels?.[0] ?? null);
-              }
-            } catch (e) {
-              setStatus({ kind: "error", msg: e?.message ?? String(e) });
-            }
-          }
-          async function loadMessages({ silent = false } = {}) {
-            if (!selectedGuild?._id || !selectedChannel?._id) {
-              setMessages([]);
+        async function loadGuilds() {
+          try {
+            const data = await apiGetMyGuilds();
+            if (data === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
               return;
             }
 
-            if (silent) setSyncing(true);
-            else setLoading(true);
+            setGuilds(data);
 
-            try {
-              const msgs = await apiGetChannelMessages(selectedGuild._id, selectedChannel._id);
-              if (msgs === null) {
-                setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
-                window.location.hash = "#/login";
-                return;
-              }
-              const processedMsgs = (await Promise.all(msgs.map(async (msg) => {
-                return await addMsgAuthorName(msg)
-              }))).sort((a,b)=> {
-                // Uses snowflakes as _id, sort with newest message at the end of the array.
-                if (a._id < b._id) {
-                  return -1
-                } else if (a._id === b._id) {
-                  return 0 // This should never happen, in theory.
-                } else {
-                  return 1
-                }
-              })
-              setMessages(processedMsgs);
-            } catch (e) {
-              setStatus({ kind: "error", msg: e?.message ?? String(e) });
-            } finally {
-              if (silent) setSyncing(false);
-              else setLoading(false);
+            if (data.length > 0) {
+              const firstGuild = data[0];
+              setSelectedGuild(firstGuild);
+              setSelectedChannel(firstGuild.channels?.[0] ?? null);
             }
+          } catch (e) {
+            setStatus({ kind: "error", msg: e?.message ?? String(e) });
           }
+        }
+
+        async function processMessages(msgs) {
+          return (await Promise.all(
+            msgs.map(async (msg) => await addMsgAuthorName(msg))
+          )).sort((a, b) => {
+            if (a._id < b._id) return -1;
+            if (a._id > b._id) return 1;
+            return 0;
+          });
+        }
+
+        async function loadLatestMessages({ silent = false } = {}) {
+          if (!selectedGuild?._id || !selectedChannel?._id) {
+            setMessages([]);
+            setHasOlderMessages(true);
+            return;
+          }
+
+          if (silent) setSyncing(true);
+          else setLoading(true);
+
+          try {
+            const msgs = await apiGetChannelMessages(selectedGuild._id, selectedChannel._id);
+            if (msgs === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
+
+            const processedMsgs = await processMessages(msgs);
+
+            setHasOlderMessages(processedMsgs.length === 50);
+
+            setMessages(prev => {
+              // Initial load
+              if (prev.length === 0) {
+                scrollToBottom.current = true;
+                return processedMsgs;
+              }
+
+              // Polling update: preserve already-loaded old history,
+              // but update/append the newest window from server.
+              const prevById = new Map(prev.map(m => [m._id, m]));
+              for (const msg of processedMsgs) {
+                prevById.set(msg._id, msg);
+              }
+
+              const merged = Array.from(prevById.values()).sort((a, b) => {
+                if (a._id < b._id) return -1;
+                if (a._id > b._id) return 1;
+                return 0;
+              });
+
+              const el = msgScrollRef.current;
+              if (el) {
+                const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 10;
+                if (nearBottom) {
+                  scrollToBottom.current = true;
+                }
+              }
+
+              return merged;
+            });
+          } catch (e) {
+            setStatus({ kind: "error", msg: e?.message ?? String(e) });
+          } finally {
+            if (silent) setSyncing(false);
+            else setLoading(false);
+          }
+        }
+
+        async function loadOlderMessages() {
+          if (!selectedGuild?._id || !selectedChannel?._id) return;
+          if (loadingOlder || !hasOlderMessages || messages.length === 0) return;
+
+          const oldestLoaded = messages[0];
+          if (!oldestLoaded?._id) return;
+
+          const el = msgScrollRef.current;
+          if (!el) return;
+
+          setLoadingOlder(true);
+
+          try {
+            const prevScrollHeight = el.scrollHeight;
+
+            const olderMsgs = await apiGetChannelMessages(
+              selectedGuild._id,
+              selectedChannel._id,
+              { beforeID: oldestLoaded._id }
+            );
+
+            if (olderMsgs === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
+
+            const processedOlder = await processMessages(olderMsgs);
+
+            if (processedOlder.length === 0) {
+              setHasOlderMessages(false);
+              return;
+            }
+
+            preserveScrollAfterPrepend.current = { prevScrollHeight };
+
+            setMessages(prev => {
+              const existingIds = new Set(prev.map(m => m._id));
+              const uniqueOlder = processedOlder.filter(m => !existingIds.has(m._id));
+              return [...uniqueOlder, ...prev];
+            });
+
+            if (processedOlder.length < 50) {
+              setHasOlderMessages(false);
+            }
+          } catch (e) {
+            setStatus({ kind: "error", msg: e?.message ?? String(e) });
+          } finally {
+            setLoadingOlder(false);
+          }
+        }
 
         useEffect(() => {
           (async () => {
-               setMeLoading(true);
-               const me = await apiGetCurrentUserRecord();
-               setMeLoading(false);
+            setMeLoading(true);
+            const me = await apiGetCurrentUserRecord();
+            setMeLoading(false);
 
-               if (!me) {
-                    setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
-                    window.location.hash = "#/login";
-                    return; 
-               }
+            if (!me) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
 
-               setUser(me);
-               await loadGuilds();
+            setUser(me);
+            await loadGuilds();
           })();
         }, [setStatus, setUser]);
 
-        // On new messages, only scroll if already at bottom. This lets users scroll up to view historical messages, without getting "snapped back" every time a new message is sent.
-        const el = msgScrollRef.current;
-        if (el && !scrollToBottom.current) { // Only change scrollToBottom if it is currently off, rather than risk overwriting a true value with false
-          scrollToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 10;
-        }
+        // Reset message state when switching channels
+        useEffect(() => {
+          setMessages([]);
+          setHasOlderMessages(true);
+          setLoadingOlder(false);
+        }, [selectedGuild?._id, selectedChannel?._id]);
 
-        // scrollToBottom consumer
+        // Initial/latest load for selected channel
+        useEffect(() => {
+          if (!selectedGuild?._id || !selectedChannel?._id) return;
+          loadLatestMessages({ silent: false });
+        }, [selectedGuild?._id, selectedChannel?._id]);
+
+        // Maintain scroll position after prepending older messages
         useLayoutEffect(() => {
           const el = msgScrollRef.current;
-          if (!el || messages.length === 0) return;
-          if (scrollToBottom.current) {
+          if (!el) return;
+
+          if (preserveScrollAfterPrepend.current) {
+            const { prevScrollHeight } = preserveScrollAfterPrepend.current;
+            const newScrollHeight = el.scrollHeight;
+            el.scrollTop += newScrollHeight - prevScrollHeight;
+            preserveScrollAfterPrepend.current = null;
+            return;
+          }
+
+          if (scrollToBottom.current && messages.length > 0) {
             scrollToBottom.current = false;
             el.scrollTop = el.scrollHeight;
           }
         }, [messages]);
 
+        // Load older history when user scrolls near top
+        useEffect(() => {
+          const el = msgScrollRef.current;
+          if (!el) return;
+
+          function onScroll() {
+            if (el.scrollTop < 40) {
+              loadOlderMessages();
+            }
+          }
+
+          el.addEventListener("scroll", onScroll);
+          return () => el.removeEventListener("scroll", onScroll);
+        }, [messages, loadingOlder, hasOlderMessages, selectedGuild?._id, selectedChannel?._id]);
+
+        // Poll for newer messages
         useEffect(() => {
           if (!selectedGuild?._id || !selectedChannel?._id) return;
 
@@ -503,7 +636,7 @@
             if (stopped || inFlight) return;
             inFlight = true;
             try {
-              await loadMessages({ silent: true });
+              await loadLatestMessages({ silent: true });
             } finally {
               inFlight = false;
             }
@@ -533,16 +666,13 @@
             }
 
             setText("");
-            const processedMsg = await addMsgAuthorName(created)
-            // Claude claims that we need to set this before setMessages because React may try to re-render the page.
-            //  I don't think that is correct because javascript is single-threaded to the best of my knowledge, and
-            //  trying to re-render a page while we are still rendering it doesn't make sense to me (How would that even work?)
-            // However, these testing-in-prod commits are the first time I have ever used react, so I may be wrong.
-            // I don't believe it hurst to set scrollToBottom up here. If anyone can give me a definite answer, that
-            //  would be greatly appreciated.
-            scrollToBottom.current = true
-            setMessages(prev => [...prev, processedMsg]);
-            //scrollToBottom.current = true
+            const processedMsg = await addMsgAuthorName(created);
+            scrollToBottom.current = true;
+
+            setMessages(prev => {
+              if (prev.some(m => m._id === processedMsg._id)) return prev;
+              return [...prev, processedMsg];
+            });
           } catch (e) {
             setStatus({ kind: "error", msg: e?.message ?? String(e) });
           }
@@ -591,26 +721,6 @@
                   ${selectedGuild ? selectedGuild.friendlyName : "Channels"}
                 </div>
 
-
-                ${showCreateGuild && html`
-                  <div className="spacer"></div>
-                  <div className="row">
-                    <input
-                      style=${{ flex: 1 }}
-                      placeholder="Guild name..."
-                      value=${newGuildName}
-                      onInput=${(e) => setNewGuildName(e.target.value)}
-                    />
-                    <button
-                      onClick=${() => {
-                        setStatus({ kind: "error", msg: "Create guild is not available because the backend has no POST /guilds route yet." });
-                      }}
-                    >
-                      Save
-                    </button>
-                  </div>
-                `}
-
                 <div className="spacer"></div>
 
                 <ul className="list">
@@ -635,10 +745,12 @@
                   ${loading && messages.length === 0
                     ? html`<div className="muted">Loading messages…</div>`
                     : html`
+                        ${loadingOlder ? html`<div className="muted">Loading older messages…</div>` : ""}
+                        ${!hasOlderMessages && messages.length > 0 ? html`<div className="muted">Beginning of channel history</div>` : ""}
                         <ul className="list">
                           ${messages.map(m => html`
                             <li key=${String(m._id)} className="item">
-                              <div className="muted"><b>${m.authorFriendlyName?? "Unknown"}</b> • #${m._id ?? ""}</div>
+                              <div className="muted"><b>${m.authorFriendlyName ?? "Unknown"}</b> • #${m._id ?? ""}</div>
                               <div>${m.content ?? ""}</div>
                             </li>
                           `)}
