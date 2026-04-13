@@ -1756,7 +1756,16 @@ When a user selects a voice channel, do the following:
 
 ## Creating text and voice channels:
 
-When a user has a currently selected guild, check if the current user's userID matches the guild's `owner` field. If so, check if the guild has space to add a new voice or text channel without exceeding our guild channel limits (by type). If so, display a "create channel" button for the user that accepts a name and channel type (you may disable/remove one of the channel types if the guild doesn't support more of that channel)
+When a user has a currently selected guild, check if the current user's userID matches the guild's `owner` field. If so, check if the guild has space to add a new voice or text channel without exceeding our guild channel limits (by type). If so, display a "create channel" button for the user that accepts a name and channel type (you may disable/remove one of the channel types if the guild doesn't support more of that channel). Make sure to verify that the channel's friendly name complies with our channel naming rules. Call the `POST /guilds/{guildID}/channels` method to create the channel.
+
+
+
+
+
+
+## User updating their own name:
+
+Provide a "Profile" button (or similar) for the user. When clicked, show them their `friendlyName` and whatever other information you wish. Give them a text box and a button that allows them to put in a new friendly name. Make sure the name complies with our user naming rules. Finally, call the `POST /users/{userID}/friendlyName` endpoint to change their name. Make sure to update their name in the userID-friendlyName cache, as well as reload anything that may display their old name.
 
 
 
