@@ -1469,7 +1469,7 @@ The new `User` structure of the user whose name was changed (including guildMemb
 
 ### Note:
 
-The voice endpoint uses websockets rather than HTTP methods. The documentation is a little less structured here, as the data has a two-way flow.
+The voice endpoint uses websockets rather than HTTP methods. The documentation is a little less structured here, as the data has a two-way flow. Also, there will be less documentation overall because some experiments still need to be conducted.
 
 ## Data structures:
 
@@ -1586,7 +1586,7 @@ This flow can be initiated by the client to gracefully leave a channel at any po
 
 ### Note:
 
-The live endpoint uses websockets rather than HTTP methods. The documentation is a little less structured here, as the data has a two-way flow.
+The live endpoint uses websockets rather than HTTP methods. The documentation is a little less structured here, as the data has a two-way flow. Also, there will be less documentation overall because some experiments still need to be conducted.
 
 ## Data structures:
 
@@ -1694,4 +1694,78 @@ Used to gracefully unsubscribe to a channel.
 2. SERVER: Responds with a `Status` structure.
 3. Both sides close the connection.
 
-# Front end Business Logic
+# Front end user stories
+
+## Creating a guild:
+
+When the user loads our chat page, get the user's structure from the `GET /users/me` endpoint. If the number of guilds they are members in is less than our user guild membership limit, there should be a button somewhere (left hand side above guild list? I'll leave it up to you.) to allow them to create a guild. This button must have a way for the user to enter text, as the name for the guild. The frontend must make sure that the name complies with our guild name limits. Finally, call `POST /guilds` with the required data and handle the response appropriately. Log any failed status code. Only status codes `201`, `400`, and `409` should be shown to the user (as something like "Error: user in too many guilds").
+
+
+
+## Inviting others to a guild:
+
+When `GET` ing a guild to view its messages, there is a new field called `invites` that should contain solely a snowflakeID. Append that to a frontend URL of your choosing (such as `/#/invites/{snowflake`) so that your frontend can detect if someone clicks an invite link later. If the event the invite code is missing, you may disable the button or hide it entirely.
+
+
+
+## Joining a guild with a link:
+
+When your frontend gets redirected to the invite URL you set above, do the following:
+
+1. Query `GET /invites/{invite snowflake}` to get the guildID associated.
+
+2. Query `GET /guilds/{guildID}/short` to get the friendly name of the guild. Display this for the user with something like "You have been invited to join **guild name**"
+
+3. Display an "Accept" button that calls `POST /invites/{invite snowflake}`.
+
+4. Only status codes `200`, `401`, and `409` should be presented to the user (with `401` being the usual request to sign in). If we get status code `201`, redirect the user to the chat page of their new guild. Otherwise, redirect to the chat home page and log the error.
+
+
+
+## Receiving messages in real time:
+
+When a user selects a text channel, do the following:
+
+1. `POST /guilds/{guildID}/channels/{channelID}/token` to receive a channel access token.
+
+2. Pass that token to the live messaging handler (that has yet to be written).
+
+3. Call `GET /guilds/..../messages` _once_, similar to how we've been doing (without the once-per-second message update call)
+
+4. Provide methods for the live messaging handler to insert new messages into the chat window, as well as to clear a name from the userID-friendlyName cache.
+
+5. When the user selects a separate text channel (*not* a voice channel), pass the new access token to the handler. Alternatively call the handler's `disconnect()` method to stop receiving new messages/updates.
+
+
+
+## Joining a voice channel:
+
+When a user selects a voice channel, do the following:
+
+1. `POST /guilds/{guildID}/channels/{channelID}/token` to receive a channel access token.
+
+2. Pass that token to the voice chat handler (that has yet to be written).
+
+3. Stay in the previously-loaded text channel in the list (for name updates)
+
+4. Provide a user_join method and a user_leave method to the handler that accept a userID and display a list of friendlyNames for users currently in the channel.
+
+5. When the user selects a different voice channel or a 'leave voice' button, pass the new channel access token or call the handler's `disconnect()` method.
+
+
+
+## Creating text and voice channels:
+
+When a user has a currently selected guild, check if the current user's userID matches the guild's `owner` field. If so, check if the guild has space to add a new voice or text channel without exceeding our guild channel limits (by type). If so, display a "create channel" button for the user that accepts a name and channel type (you may disable/remove one of the channel types if the guild doesn't support more of that channel)
+
+
+
+## General thoughts:
+
+The frontend dev will have a lot more freedom for this sprint in terms of how/what to display. Any changes that need to be made to frontend/backend logic or how things are displayed will be documented here.
+
+
+
+# Edit:
+
+The event that gets triggered when a user changes their display name needs to be removed. It doesn't make sense to have that without also having a way for new channels to show up live, which is more complexity than we have time for. Please ignore any sections related to user name-change events (outside of the ones that involve a user changing *their own* name)
