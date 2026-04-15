@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { requireAuth } from './middleware.js';
+import { requireAuth, requireScope } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 import { generateSnowflake } from './snowflake.js';
 
@@ -23,7 +23,7 @@ Accepts a structure in the request body of the form
 Performs a couple of permission/connection tests, then creates a User in mongodb.
 Returns the finished user structure if successful
 */
-router.post('/users', requireAuth, async (req: Request, res: Response)=>{
+router.post('/users', requireAuth, requireScope("service"), async (req: Request, res: Response)=>{
   // DB connectivity check
   if(!isDbConnected()) {
     res.status(503).json({ error: "database not connected" });
@@ -60,7 +60,7 @@ router.post('/users', requireAuth, async (req: Request, res: Response)=>{
   // Not really a place to catch a generic error and return code 500.
 })
 
-router.get('/users/me', requireAuth, async (req: Request, res: Response) => {
+router.get('/users/me', requireAuth, requireScope("user"),async (req: Request, res: Response) => {
   // DB connectivity check
   if (!isDbConnected()) {
     res.status(503).json({ error: "database not connected" });
@@ -94,7 +94,7 @@ router.get('/users/me', requireAuth, async (req: Request, res: Response) => {
 
 });
 
-router.get('/users', requireAuth, async (req: Request, res: Response) => {
+router.get('/users', requireAuth, requireScope("service"), async (req: Request, res: Response) => {
   // DB connectivity check
   if (!isDbConnected()) {
     res.status(503).json({ error: "database not connected" });
@@ -120,7 +120,7 @@ router.get('/users', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-router.get('/users/:userID/short', requireAuth, async (req: Request, res: Response) => {
+router.get('/users/:userID/short', requireAuth, requireScope("service"), async (req: Request, res: Response) => {
   // DB connectivity check
   if (!isDbConnected()) {
     res.status(503).json({ error: "database not connected" });
@@ -153,7 +153,7 @@ router.get('/users/:userID/short', requireAuth, async (req: Request, res: Respon
 
 });
 
-router.get('/users/:userID', requireAuth, async (req: Request, res: Response) => {
+router.get('/users/:userID', requireAuth, requireScope("service"),async (req: Request, res: Response) => {
   // DB connectivity check
   if (!isDbConnected()) {
     res.status(503).json({ error: "database not connected" });
