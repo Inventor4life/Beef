@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { requireAuth } from './middleware.js';
+import { requireAuth, requireScope } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 import { generateSnowflake } from './snowflake.js';
 
@@ -22,7 +22,7 @@ const router = Router();
 
 // :guildID is the route parameter, otherwise we would do /guilds?guildID=123
 // 401 code is handled by requireAuth
-router.get('/guilds/:guildID', requireAuth, async (req: Request, res: Response) => {
+router.get('/guilds/:guildID', requireAuth, requireScope("user, service"), async (req: Request, res: Response) => {
     if (!isDbConnected()) {
         // NOTE: Issue says 503 if query failed due to timed out, db offline, etc.
         // but sprint2plan says 503 if can't connect to db, 500 otherwise
@@ -53,7 +53,7 @@ router.get('/guilds/:guildID', requireAuth, async (req: Request, res: Response) 
     }
 });
 
-router.post('/guilds/:guildID/channels/:channelID/messages', requireAuth, async (req: Request, res: Response) => {
+router.post('/guilds/:guildID/channels/:channelID/messages', requireAuth, requireScope("user"), async (req: Request, res: Response) => {
     // check if db not connected
     if (!isDbConnected()) {
         res.status(503).json({ error: "database not connected" });
@@ -127,7 +127,7 @@ router.post('/guilds/:guildID/channels/:channelID/messages', requireAuth, async 
 
 });
 
-router.get('/guilds/:guildID/channels/:channelID/messages', requireAuth, async (req: Request, res: Response) => {
+router.get('/guilds/:guildID/channels/:channelID/messages', requireAuth, requireScope("user"), async (req: Request, res: Response) => {
     if (!isDbConnected()) {
         res.status(503).json({ error: "database not connected" });
         return;

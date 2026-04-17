@@ -30,5 +30,19 @@ export function authCheck(req: Request, res: Response, next: NextFunction) {
     }
 }
 
+// middleware factory - returns a function based on the provided scopes. Checks if the user has req scopes.
+// ...scopes is a rest parameter, can take any number of scopes
+export function requireScope(...scopes: string[]) {
+    return function (req: Request, res: Response, next: NextFunction) {
+        const tokenScopes = (res.locals.user?.scope ?? "").split(" ");
+        const hasScope = scopes.some(s => tokenScopes.includes(s));
+        if (!hasScope) {
+            res.status(403).json({ error: "insufficient scope" });
+            return;
+        }
+        next();
+    };
+}
+
 requireAuth.use(cookieParser())
 requireAuth.use(authCheck)

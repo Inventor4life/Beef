@@ -44,7 +44,7 @@ interface ApiError {
 }
 
 function generateServiceToken() : string{
-  return jwt.sign({"sub":""}, secretKey, options)
+  return jwt.sign({"sub":"", "scope": "service"}, secretKey, options)
 }
 
 let thisServiceToken = generateServiceToken();
@@ -203,7 +203,8 @@ authRoutes.post('/auth', async (req: Request, res: Response) => {
     // Sign user token
     const internalPayload = {
       // Registered Claims
-      "sub": result._id, 
+      "sub": result._id,
+      "scope": "user"
     };
 
     const token = jwt.sign(internalPayload, secretKey, options)
