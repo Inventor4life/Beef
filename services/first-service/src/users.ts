@@ -4,6 +4,8 @@ import { requireAuth, requireScope } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 import { generateSnowflake } from './snowflake.js';
 
+const MAXGUILDS = 16
+
 export interface User {
   _id: string,
   oidcSub: string,
@@ -181,5 +183,72 @@ router.get('/users/:userID', requireAuth, requireScope("service"),async (req: Re
   }
 
 });
+
+router.post('/users/:userID/guildMemberships', requireAuth, requireScope("service"), async (req: Request, res: Response) => {
+  if (!isDbConnected()) {
+    res.status(503).json({ error: "database not connected" });
+    return;
+  }
+
+  const userIDunpadded = req.params.userID
+  if (!userIDunpadded || typeof userIDunpadded !== 'string') {
+    res.status(400).json({ error: "missing required route parameter \"userID\"." });
+    return;
+  }
+  const userID = userIDunpadded.padStart(20, "0");
+
+  const { guildID } = req.body
+  if (!guildID || typeof guildID !== 'string') {
+    res.status(400).json({ error: "missing or malformed required body parameter \"guildID\"." });
+    return;
+  }
+
+  // Query the database for the provided userID
+  let userResult; // needs to be defined in this scope since we need it outside the try-catch block.
+  try {
+    userResult = await getCollection<User>("users").findOne({_id: userID})
+    // If no User is found, returns status 404 and stop.
+    if(!userResult) {
+      res.status(404).json({ error: "user not found"});
+      return;
+    }
+  } catch (err) {
+    // If the query failed for other reasons, return status 503 and stop.
+    console.log("POST /users/:userID/guildMemberships error querying user: ", err);
+    res.status(503).json({ error: "failed to query user from database" });
+    return;
+  }
+
+  // If the User's guildMemberships array already contains the new guildID from the body, return status 200 and stop.
+  if (userResult.guildMemberships.includes(guildID)) {
+    res.status(200).json({ message: "user already a member of this guild" });
+    return;
+  }
+
+  // Verify that the number of guilds the user is currently enrollled in (the size of the User's guildMemberships array) would not exceed our user guild membership limit
+  if (userResult.guildMemberships.length >= MAXGUILDS) {
+    // Return status 409 if joining the guild would exceed the limit, then stop.
+    res.status(409).json({ error: "user guild membership limit reached" });
+    return;
+  }
+
+  // Otherwise, use mongoose's updateOne method to $push the new guild into the membership stack.
+  try {
+    const result = await getCollection<User>("users").updateOne({_id: userID}, {$push: {guildMemberships: guildID}});
+    if (result.modifiedCount !== 1) {
+      // If previous step failed return status 500 and stop
+      console.log("POST /users/:userID/guildMemberships error updating user guild memberships: ", result);
+      res.status(500).json({ error: "failed to update user guild memberships" });
+      return;
+    }
+    // Otherwise, return status 201 and stop.
+    res.status(201).end();
+    // if another error occurs return status 500 and stop
+  } catch (err) {
+    console.log("POST /users/:userID/guildMemberships error updating user guild memberships: ", err);
+    res.status(500).json({ error: "failed to update user guild memberships" });
+    return;
+  }
+})
 
 export default router;
