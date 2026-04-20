@@ -122,7 +122,7 @@ router.get('/users', requireAuth, requireScope("service"), async (req: Request, 
   }
 });
 
-router.get('/users/:userID/short', requireAuth, requireScope("service"), async (req: Request, res: Response) => {
+router.get('/users/:userID/short', requireAuth, requireScope("user"), async (req: Request, res: Response) => {
   // DB connectivity check
   if (!isDbConnected()) {
     res.status(503).json({ error: "database not connected" });
