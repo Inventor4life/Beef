@@ -22,7 +22,7 @@ const router = Router();
 
 // :guildID is the route parameter, otherwise we would do /guilds?guildID=123
 // 401 code is handled by requireAuth
-router.get('/guilds/:guildID', requireAuth, requireScope("user, service"), async (req: Request, res: Response) => {
+router.get('/guilds/:guildID', requireAuth, requireScope("user", "service"), async (req: Request, res: Response) => {
     if (!isDbConnected()) {
         // NOTE: Issue says 503 if query failed due to timed out, db offline, etc.
         // but sprint2plan says 503 if can't connect to db, 500 otherwise
