@@ -9,31 +9,92 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 
     <style>
-      :root { color-scheme: light; }
-      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #0b0b0f; color: #f5f5f7; }
+      :root {
+        color-scheme: light;
+        --bg: #241417;
+        --panel: #3a1f24;
+        --panel-2: #2c171b;
+        --border: #6a3942;
+        --text: #fff4f4;
+        --muted: #e7c9cd;
+        --input-bg: #26161a;
+        --accent: #d46a7a;
+        --link: #ffd2d8;
+        --error: #ffb3b3;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
       .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 18px; }
-      .card { background: #141420; border: 1px solid #26263a; border-radius: 16px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      }
+
       .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
       h1 { margin: 0 0 8px; font-size: 22px; }
-      .muted { color: #b9b9c6; font-size: 14px; }
+      .muted { color: var(--muted); font-size: 14px; }
       .spacer { height: 14px; }
-      input, button, textarea {
+
+      input, button, textarea, select {
         font: inherit;
         border-radius: 12px;
-        border: 1px solid #2a2a40;
-        background: #10101a;
-        color: #f5f5f7;
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        color: var(--text);
         padding: 10px 12px;
       }
-      button { cursor: pointer; }
+
+      button {
+        cursor: pointer;
+      }
+
       button:hover { filter: brightness(1.08); }
-      .pill { display: inline-block; padding: 5px 10px; border-radius: 999px; border: 1px solid #2a2a40; background: #10101a; font-size: 12px; color: #cfcfe6; }
+
+      .pill {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
       .list { margin: 0; padding: 0; list-style: none; }
-      .item { padding: 10px 12px; border: 1px solid #26263a; background: #10101a; border-radius: 12px; margin-bottom: 10px; }
-      .error { color: #ffb3b3; }
-      a { color: #a7c5ff; text-decoration: none; }
+
+      .item {
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        background: var(--input-bg);
+        border-radius: 12px;
+        margin-bottom: 10px;
+      }
+
+      .error { color: var(--error); }
+
+      a {
+        color: var(--link);
+        text-decoration: none;
+      }
+
       a:hover { text-decoration: underline; }
-      .footer { margin-top: 14px; font-size: 12px; color: #9a9ab2; }
+
+      .footer {
+        margin-top: 14px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
       .chat-layout {
         display: grid;
         grid-template-columns: 180px 220px 1fr;
@@ -43,8 +104,8 @@
 
       .sidebar,
       .messages-panel {
-        background: #10101a;
-        border: 1px solid #26263a;
+        background: var(--input-bg);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 12px;
       }
@@ -52,7 +113,7 @@
       .sidebar-title {
         font-size: 14px;
         font-weight: 700;
-        color: #cfcfe6;
+        color: var(--muted);
         margin-bottom: 10px;
       }
 
@@ -62,8 +123,8 @@
       }
 
       .sidebar-item.active {
-        border-color: #4b63ff;
-        background: #1a1f35;
+        border-color: var(--accent);
+        background: var(--panel-2);
       }
 
       .messages-panel {
@@ -84,6 +145,12 @@
       .messages-scroll .list {
         margin-top: auto;
       }
+
+      .theme-picker {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
     </style>
   </head>
 
@@ -101,7 +168,60 @@
 
       // Always post back to this server (same-origin) so cookies/SameSite=Strict work
       const AUTH_POST_URL = new URL("/auth", window.location.origin).toString();
-
+      const THEMES = {
+        rare: {
+          vars: {
+            "--bg": "#2a0f16",
+            "--panel": "#451724",
+            "--panel-2": "#34111b",
+            "--border": "#8a3048",
+            "--text": "#fff1f4",
+            "--muted": "#f0c2cc",
+            "--input-bg": "#301018",
+            "--accent": "#d94b6a",
+            "--link": "#ffc8d4",
+          },
+        },
+        mediumRare: {
+          vars: {
+            "--bg": "#241417",
+            "--panel": "#3a1f24",
+            "--panel-2": "#2c171b",
+            "--border": "#6a3942",
+            "--text": "#fff4f4",
+            "--muted": "#e7c9cd",
+            "--input-bg": "#26161a",
+            "--accent": "#d46a7a",
+            "--link": "#ffd2d8",
+          },
+        },
+        medium: {
+          vars: {
+            "--bg": "#2a1d18",
+            "--panel": "#4a3128",
+            "--panel-2": "#39251f",
+            "--border": "#8a5b47",
+            "--text": "#fff6ef",
+            "--muted": "#e8d2c5",
+            "--input-bg": "#33211b",
+            "--accent": "#c88463",
+            "--link": "#ffd9c7",
+          },
+        },
+        wellDone: {
+          vars: {
+            "--bg": "#211814",
+            "--panel": "#3b2a21",
+            "--panel-2": "#2f221b",
+            "--border": "#6f5443",
+            "--text": "#f8f1ea",
+            "--muted": "#d8c8bc",
+            "--input-bg": "#291d17",
+            "--accent": "#8b5e3c",
+            "--link": "#e6c9b0",
+          },
+        },
+      };
       function getCookie(name) {
         const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const m = document.cookie.match(new RegExp("(^|;\\s*)" + escaped + "=([^;]*)"));
@@ -169,7 +289,16 @@
         if (opts.maxAgeSec) parts.push(`Max-Age=${opts.maxAgeSec}`);
         document.cookie = parts.join("; ");
       }
+      function applyTheme(themeKey) {
+        const theme = THEMES[themeKey] ?? THEMES.mediumRare;
+        const root = document.documentElement;
 
+        for (const [key, value] of Object.entries(theme.vars)) {
+          root.style.setProperty(key, value);
+        }
+
+        localStorage.setItem("beef-theme", themeKey);
+      }
       function ensureCsrfToken() {
         // Your server checks: cookie g_csrf_token === body g_csrf_token
         // If GIS didn't set it (we're using callback mode), we set our own.
@@ -284,7 +413,7 @@
         const [route, setRoute] = useState(getRoute());
         const [user, setUser] = useState(null);
         const [status, setStatus] = useState({ kind: "idle", msg: "" });
-
+        const [theme, setTheme] = useState(() => localStorage.getItem("beef-theme") || "mediumRare");
         useEffect(() => {
           const onHash = () => setRoute(getRoute());
           window.addEventListener("hashchange", onHash);
@@ -301,16 +430,39 @@
             }
           })();
         }, []);
-
+        useEffect(() => {
+          applyTheme(theme);
+        }, [theme]);
         return html`
           <div className="wrap">
             <div className="card">
               <div className="row" style=${{ justifyContent: "space-between" }}>
                 <div>
                   <h1>Beef</h1>
-                  <div className="muted">${route === "login" ? "Google OIDC sign-in" : "Messages"}</div>
+                  <div className="muted">
+                    ${route === "login" ? "Google OIDC sign-in" : "Messages"}
+                  </div>
                 </div>
-                <span className="pill">${route === "messages" ? "Messages" : "Login"}</span>
+
+                <div className="row">
+                  <span className="pill">
+                    ${route === "messages" ? "Messages" : "Login"}
+                  </span>
+
+                  <div className="theme-picker">
+                    <label className="muted" htmlFor="themeSelect">Theme:</label>
+                    <select
+                      id="themeSelect"
+                      value=${theme}
+                      onChange=${(e) => setTheme(e.target.value)}
+                    >
+                      <option value="rare">Rare</option>
+                      <option value="mediumRare">Medium Rare</option>
+                      <option value="medium">Medium</option>
+                      <option value="wellDone">Well Done</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div className="spacer"></div>
