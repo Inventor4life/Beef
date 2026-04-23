@@ -138,12 +138,12 @@
         min-height: 320px;
         max-height: 420px;
         overflow-y: auto;
-        display: flex;
-        flex-direction: column;
       }
 
       .messages-scroll .list {
-        margin-top: auto;
+        margin: 0;
+        padding: 0;
+        list-style: none;
       }
 
       .theme-picker {
@@ -568,7 +568,7 @@
 
         const msgScrollRef = useRef(null);
         const scrollToBottom = useRef(false);
-        const preserveScrollAfterPrepend = useRef(null);
+        
 
         async function loadGuilds() {
           try {
@@ -624,15 +624,14 @@
             setHasOlderMessages(processedMsgs.length === 50);
 
             setMessages(prev => {
-              // Initial load
               if (prev.length === 0) {
                 scrollToBottom.current = true;
                 return processedMsgs;
               }
 
-              // Polling update: preserve already-loaded old history,
-              // but update/append the newest window from server.
               const prevById = new Map(prev.map(m => [m._id, m]));
+              const prevNewestId = prev.length ? prev[prev.length - 1]._id : null;
+
               for (const msg of processedMsgs) {
                 prevById.set(msg._id, msg);
               }
@@ -643,10 +642,14 @@
                 return 0;
               });
 
+              const mergedNewestId = merged.length ? merged[merged.length - 1]._id : null;
+
               const el = msgScrollRef.current;
-              if (el) {
-                const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 10;
-                if (nearBottom) {
+              if (el && !loadingOlder) {
+                const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 10;
+                const hasNewNewestMessage = mergedNewestId !== prevNewestId;
+
+                if (nearBottom && hasNewNewestMessage) {
                   scrollToBottom.current = true;
                 }
               }
@@ -674,7 +677,7 @@
           setLoadingOlder(true);
 
           try {
-            const prevScrollHeight = el.scrollHeight;
+            
 
             const olderMsgs = await apiGetChannelMessages(
               selectedGuild._id,
@@ -695,7 +698,7 @@
               return;
             }
 
-            preserveScrollAfterPrepend.current = { prevScrollHeight };
+            
 
             setMessages(prev => {
               const existingIds = new Set(prev.map(m => m._id));
@@ -748,13 +751,6 @@
           const el = msgScrollRef.current;
           if (!el) return;
 
-          if (preserveScrollAfterPrepend.current) {
-            const { prevScrollHeight } = preserveScrollAfterPrepend.current;
-            const newScrollHeight = el.scrollHeight;
-            el.scrollTop += newScrollHeight - prevScrollHeight;
-            preserveScrollAfterPrepend.current = null;
-            return;
-          }
 
           if (scrollToBottom.current && messages.length > 0) {
             scrollToBottom.current = false;
