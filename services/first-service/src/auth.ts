@@ -223,7 +223,3 @@ authRoutes.post('/auth', async (req: Request, res: Response) => {
   }
   res.status(500).json({error: "Internal server error"}) // This might be reached if POSTing a user fails twice in a row.
 });
-
-authRoutes.get('/test-auth', requireAuth, (req: Request, res: Response) => {
-	res.json({ user: res.locals.user });
-});
