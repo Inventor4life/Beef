@@ -3,12 +3,23 @@ import type { Request, Response } from 'express';
 import { requireAuth, requireScope } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 import { generateSnowflake } from './snowflake.js';
+import { generateServiceToken, getLocalUrl, getServiceAgent } from './auth.js';
+
+const MAX_GUILD_NAME_LENGTH = 32;
 
 interface Guild {
     _id: string;
     friendlyName: string;
+    owner: string;
     members: string[];
-    channels: [{ friendlyName: string; _id: string }];
+    channels: Channel[];
+    invites: string[];
+}
+
+interface Channel {
+    _id: string;
+    friendlyName: string;
+    type: string;
 }
 
 interface Message {
@@ -18,7 +29,219 @@ interface Message {
     content: string;
 }
 
+type ServiceCallResult =
+    | { ok: true }
+    | { ok: false; status: number; message: string };
+
+type InviteCallResult =
+    | { ok: true; inviteCode: string }
+    | { ok: false; status: number; message: string };
+
 const router = Router();
+let serviceToken = generateServiceToken();
+
+function isValidGuildName(friendlyName: unknown): friendlyName is string {
+    if (typeof friendlyName !== 'string') {
+        return false;
+    }
+
+    const isPrintableAscii = /^[\x20-\x7E]+$/.test(friendlyName);
+    const startsWithWhitespace = /^\s/.test(friendlyName);
+
+    return (
+        friendlyName.length > 0 &&
+        friendlyName.length <= MAX_GUILD_NAME_LENGTH &&
+        isPrintableAscii &&
+        !startsWithWhitespace
+    );
+}
+
+function makeServicePostRequest(body: object): RequestInit {
+    return {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: {
+            "Content-Type": "application/json; charset=UTF-8",
+            cookie: `user_token=${serviceToken};`
+        },
+        dispatcher: getServiceAgent() ?? undefined
+    } as RequestInit;
+}
+
+async function readResponseMessage(response: globalThis.Response): Promise<string> {
+    try {
+        const bodyText = await response.text();
+        return bodyText || response.statusText;
+    } catch {
+        return response.statusText;
+    }
+}
+
+async function addUserGuildMembership(userID: string, guildID: string): Promise<ServiceCallResult> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const response = await fetch(
+                getLocalUrl(`/users/${encodeURIComponent(userID)}/guildMemberships`),
+                makeServicePostRequest({ guildID: guildID })
+            );
+
+            if (response.status === 401 && attempt === 0) {
+                serviceToken = generateServiceToken();
+                continue;
+            }
+
+            if (response.status === 201 || response.status === 200) {
+                return { ok: true };
+            }
+
+            return {
+                ok: false,
+                status: response.status,
+                message: await readResponseMessage(response)
+            };
+        } catch (err) {
+            return {
+                ok: false,
+                status: 500,
+                message: String(err)
+            };
+        }
+    }
+
+    return {
+        ok: false,
+        status: 500,
+        message: "service token refresh failed"
+    };
+}
+
+async function createGuildInvite(guildID: string): Promise<InviteCallResult> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const response = await fetch(
+                getLocalUrl('/invites'),
+                makeServicePostRequest({ guildID: guildID })
+            );
+
+            if (response.status === 401 && attempt === 0) {
+                serviceToken = generateServiceToken();
+                continue;
+            }
+
+            if (response.status !== 201) {
+                return {
+                    ok: false,
+                    status: response.status,
+                    message: await readResponseMessage(response)
+                };
+            }
+
+            const responseBody = await response.json();
+            if (!responseBody.inviteCode || typeof responseBody.inviteCode !== 'string') {
+                return {
+                    ok: false,
+                    status: 500,
+                    message: "POST /invites returned a malformed response"
+                };
+            }
+
+            return {
+                ok: true,
+                inviteCode: responseBody.inviteCode
+            };
+        } catch (err) {
+            return {
+                ok: false,
+                status: 500,
+                message: String(err)
+            };
+        }
+    }
+
+    return {
+        ok: false,
+        status: 500,
+        message: "service token refresh failed"
+    };
+}
+
+router.post('/guilds', requireAuth, requireScope("user"), async (req: Request, res: Response) => {
+    const { friendlyName } = req.body;
+    if (!isValidGuildName(friendlyName)) {
+        res.status(400).json({ error: "friendlyName must be 1-32 printable ASCII characters and cannot start with whitespace" });
+        return;
+    }
+
+    if (!isDbConnected()) {
+        res.status(503).json({ error: "database not connected" });
+        return;
+    }
+
+    const currentUserID = res.locals.user?.sub;
+    if (!currentUserID || typeof currentUserID !== 'string') {
+        console.log("POST /guilds missing userID from Beef JWT");
+        res.status(500).json({ error: "missing userID from auth token" });
+        return;
+    }
+
+    const newGuild: Guild = {
+        _id: generateSnowflake(),
+        friendlyName: friendlyName,
+        owner: "",
+        members: [],
+        channels: [],
+        invites: []
+    };
+
+    const membershipResult = await addUserGuildMembership(currentUserID, newGuild._id);
+    if (!membershipResult.ok) {
+        if (membershipResult.status === 409) {
+            res.status(409).json({ error: "user guild limit exceeded" });
+            return;
+        }
+
+        console.log("POST /guilds failed to update user guildMemberships:", membershipResult.status, membershipResult.message);
+        res.status(500).json({ error: "failed to update user guild memberships" });
+        return;
+    }
+
+    newGuild.owner = currentUserID;
+    newGuild.members.push(currentUserID);
+
+    try {
+        const insertResult = await getCollection<Guild>("guilds").insertOne(newGuild);
+        if (!insertResult.acknowledged) {
+            res.status(503).json({ error: "failed to insert guild into database" });
+            return;
+        }
+    } catch (err) {
+        console.log("POST /guilds error inserting guild:", err);
+        res.status(503).json({ error: "failed to insert guild into database" });
+        return;
+    }
+
+    const inviteResult = await createGuildInvite(newGuild._id);
+    if (inviteResult.ok) {
+        try {
+            const updateResult = await getCollection<Guild>("guilds").updateOne(
+                { _id: newGuild._id },
+                { $push: { invites: inviteResult.inviteCode } }
+            );
+
+            if (updateResult.modifiedCount === 1) {
+                newGuild.invites.push(inviteResult.inviteCode);
+            } else {
+                console.log("POST /guilds failed to attach invite to guild:", updateResult);
+            }
+        } catch (err) {
+            console.log("POST /guilds error attaching invite to guild:", err);
+        }
+    } else {
+        console.log("POST /guilds invite creation failed:", inviteResult.status, inviteResult.message);
+    }
+
+    res.status(201).json(newGuild);
+});
 
 // :guildID is the route parameter, otherwise we would do /guilds?guildID=123
 // 401 code is handled by requireAuth

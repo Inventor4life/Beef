@@ -8,6 +8,7 @@ import { connectToDb, closeDb, isDbConnected } from "./db.js";
 import fs from "fs";
 import messageRoutes, { initMessages } from "./messages.js";
 import guildRoutes from "./guilds.js";
+import inviteRoutes from "./invites.js";
 import userRoutes from "./users.js"
 import { authRoutes, authUseAgent, setLocalUrlPrefix } from "./auth.js";
 
@@ -24,6 +25,7 @@ app.use(express.json())
 
 app.use(messageRoutes); // use the message routes defined in messages.ts
 app.use(guildRoutes); // use the guild routes defined in guilds.ts
+app.use(inviteRoutes); // use the invite routes defined in invites.ts
 app.use(userRoutes); // use the user routes defined in users.ts
 app.use(authRoutes); // use the auth routes defined in auth.ts
 

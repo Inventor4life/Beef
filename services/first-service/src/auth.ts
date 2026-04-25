@@ -43,7 +43,7 @@ interface ApiError {
   response: object
 }
 
-function generateServiceToken() : string{
+export function generateServiceToken() : string{
   return jwt.sign({"sub":"", "scope": "service"}, secretKey, options)
 }
 
@@ -56,11 +56,15 @@ let localUrlPrefix: string = "https://localhost:3000"
 export function setLocalUrlPrefix(localUrl: string) {
   localUrlPrefix = localUrl
 }
-const getLocalUrl = (path: string) => localUrlPrefix + path;
+export const getLocalUrl = (path: string) => localUrlPrefix + path;
 
 let serviceAgent: Agent | null = null;
 export function authUseAgent(newAgent: Agent) {
   serviceAgent = newAgent;
+}
+
+export function getServiceAgent() {
+  return serviceAgent;
 }
 
 async function userGetFromOidc(serviceToken: string, oidcSub: string) : Promise<User | ApiError>{
