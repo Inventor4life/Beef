@@ -217,7 +217,7 @@ authRoutes.post('/auth', async (req: Request, res: Response) => {
       httpOnly: true,
       secure: true,
       sameSite: "strict"
-    }).redirect("#/chat")//("/auth#/messages")
+    }).redirect("/#/chat")//("/#/chat")
 
     return;
   }
