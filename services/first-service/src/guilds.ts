@@ -6,6 +6,11 @@ import { generateSnowflake } from './snowflake.js';
 import { generateServiceToken, getLocalUrl, getServiceAgent } from './auth.js';
 
 const MAX_GUILD_NAME_LENGTH = 32;
+const MAX_CHANNEL_NAME_LENGTH = 32;
+const MAX_TEXT_CHANNELS = 16;
+const MAX_VOICE_CHANNELS = 2;
+
+type ChannelType = "Voice" | "Text";
 
 interface Guild {
     _id: string;
@@ -19,7 +24,7 @@ interface Guild {
 interface Channel {
     _id: string;
     friendlyName: string;
-    type: string;
+    type: ChannelType;
 }
 
 interface Message {
@@ -54,6 +59,34 @@ function isValidGuildName(friendlyName: unknown): friendlyName is string {
         isPrintableAscii &&
         !startsWithWhitespace
     );
+}
+
+function isValidChannelName(friendlyName: unknown): friendlyName is string {
+    if (typeof friendlyName !== 'string') {
+        return false;
+    }
+
+    const hasControlCharacter = /[\x00-\x1F\x7F]/.test(friendlyName);
+    const startsWithWhitespace = /^\s/.test(friendlyName);
+
+    return (
+        friendlyName.length > 0 &&
+        friendlyName.length <= MAX_CHANNEL_NAME_LENGTH &&
+        !hasControlCharacter &&
+        !startsWithWhitespace
+    );
+}
+
+function isValidChannelType(type: unknown): type is ChannelType {
+    return type === "Voice" || type === "Text";
+}
+
+function getChannelLimit(type: ChannelType): number {
+    if (type === "Text") {
+        return MAX_TEXT_CHANNELS;
+    }
+
+    return MAX_VOICE_CHANNELS;
 }
 
 function makeServicePostRequest(body: object): RequestInit {
@@ -274,6 +307,91 @@ router.get('/guilds/:guildID', requireAuth, requireScope("user", "service"), asy
         console.log("Error fetching guild:", err);
         res.status(500).json({ error: "failed to fetch guild" });
     }
+});
+
+router.post('/guilds/:guildID/channels', requireAuth, requireScope("user"), async (req: Request, res: Response) => {
+    const friendlyName = req.body?.friendlyName;
+    const type = req.body?.type;
+
+    if (!isValidChannelName(friendlyName)) {
+        res.status(400).json({ error: "friendlyName must be 1-32 displayable characters and cannot start with whitespace" });
+        return;
+    }
+
+    if (!isValidChannelType(type)) {
+        res.status(400).json({ error: "type must be either Voice or Text" });
+        return;
+    }
+
+    const guildIDUnpadded = req.params.guildID;
+    if (!guildIDUnpadded || typeof guildIDUnpadded !== 'string') {
+        res.status(400).json({ error: "guildID is required and must be a string" });
+        return;
+    }
+
+    const currentUserID = res.locals.user?.sub;
+    if (!currentUserID || typeof currentUserID !== 'string') {
+        console.log("POST /guilds/:guildID/channels missing userID from Beef JWT");
+        res.status(500).json({ error: "missing userID from auth token" });
+        return;
+    }
+
+    if (!isDbConnected()) {
+        res.status(503).json({ error: "database not connected" });
+        return;
+    }
+
+    const guildID = guildIDUnpadded.padStart(20, "0");
+    let guild: Guild | null;
+
+    try {
+        guild = await getCollection<Guild>("guilds").findOne({ _id: guildID });
+    } catch (err) {
+        console.log("POST /guilds/:guildID/channels error querying guild:", err);
+        res.status(503).json({ error: "failed to query guild from database" });
+        return;
+    }
+
+    if (!guild) {
+        res.status(404).json({ error: "guild not found" });
+        return;
+    }
+
+    if (guild.owner !== currentUserID) {
+        res.status(403).json({ error: "only the guild owner can create channels" });
+        return;
+    }
+
+    const channelsOfThisType = guild.channels.filter(channel => channel.type === type).length;
+    if (channelsOfThisType >= getChannelLimit(type)) {
+        res.status(409).json({ error: "guild channel limit exceeded" });
+        return;
+    }
+
+    const newChannel: Channel = {
+        _id: generateSnowflake(),
+        friendlyName: friendlyName,
+        type: type
+    };
+
+    try {
+        const updateResult = await getCollection<Guild>("guilds").updateOne(
+            { _id: guildID },
+            { $push: { channels: newChannel } }
+        );
+
+        if (!updateResult.acknowledged || updateResult.modifiedCount !== 1) {
+            console.log("POST /guilds/:guildID/channels failed to update guild:", updateResult);
+            res.status(503).json({ error: "failed to update guild channels" });
+            return;
+        }
+    } catch (err) {
+        console.log("POST /guilds/:guildID/channels error updating guild:", err);
+        res.status(503).json({ error: "failed to update guild channels" });
+        return;
+    }
+
+    res.status(201).json(newChannel);
 });
 
 router.post('/guilds/:guildID/channels/:channelID/messages', requireAuth, requireScope("user"), async (req: Request, res: Response) => {
