@@ -6,7 +6,6 @@ import dotenv from "dotenv";
 import path from "path";
 import { connectToDb, closeDb, isDbConnected } from "./db.js";
 import fs from "fs";
-import messageRoutes, { initMessages } from "./messages.js";
 import guildRoutes from "./guilds.js";
 import inviteRoutes from "./invites.js";
 import userRoutes from "./users.js"
@@ -23,7 +22,6 @@ dotenv.config();
 const app = express();
 app.use(express.json())
 
-app.use(messageRoutes); // use the message routes defined in messages.ts
 app.use(guildRoutes); // use the guild routes defined in guilds.ts
 app.use(inviteRoutes); // use the invite routes defined in invites.ts
 app.use(userRoutes); // use the user routes defined in users.ts
@@ -96,7 +94,7 @@ const server = https.createServer({key, cert}, app).listen(PORT, HOST, () => {
   console.log(`Server running at https://${HOST}:${PORT}/`);
 });
 
-connectToDb().then(() => initMessages()).then(() => console.log("DB connected.")).catch((err) => console.error("Failed to connect to DB:", err));
+connectToDb().then(() => console.log("DB connected.")).catch((err) => console.error("Failed to connect to DB:", err));
 
 process.on('SIGTERM', async () => {
 	server.close();
