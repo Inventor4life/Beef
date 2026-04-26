@@ -18,9 +18,12 @@
     "express": "^5.2.1",
     "google-auth-library": "^10.6.1",
     "jsonwebtoken": "^9.0.3",
+    "mediasoup": "^3.19.21",
+    "mediasoup-client": "^3.19.0",
     "mongodb": "^7.1.0",
     "typescript": "^5.9.3",
-    "undici": "^7.24.7"
+    "undici": "^7.24.7",
+    "webpack": "^5.106.2"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
