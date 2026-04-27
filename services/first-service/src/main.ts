@@ -74,6 +74,8 @@ const indexPageTemplate = fs.readFileSync(path.resolve(PATH_THIS_FILE,"../data/i
 const indexPage = indexPageTemplate.replaceAll(/[{]{2}\s*CLIENT_ID\s*[}]{2}/g, CLIENT_ID)
                                    .replaceAll(/[{]{2}\s*LOGIN_URI\s*[}]{2}/g, LOGIN_URI);
 
+app.use('/static', express.static(path.resolve(PATH_THIS_FILE, "../static")))
+
 app.get('/', (req: Request, res: Response) => {
     res.send("Typescript with express!");
 });
