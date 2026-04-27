@@ -1,6 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
-
+import "./env.js"
 import express from "express";
 import { Agent } from "undici"
 import https from "https"
