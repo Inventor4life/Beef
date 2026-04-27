@@ -38,6 +38,39 @@ class voiceConnection {
         throw new Error("voiceConnection: Permission Denied")
       }
 
+      // 1. Get router RTP capabilities and load the Device
+      const routerRtpCapabilities = await this.socket.emitWithAck('getRouterRtpCapabilities');
+      await this.device.load({ routerRtpCapabilities });
+
+      // Create our sending transport
+      const params = await this.socket.emitWithAck('createSendTransport');
+
+      this.sendTransport = this.device.createSendTransport(params);
+
+      this.sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+        try {
+          // Spclet 
+          await this.socket?.emitWithAck('connectSendTransport', { dtlsParameters });
+          callback();
+        } catch (err) {
+          errback(err as Error);
+        }
+      });
+
+      sendTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
+        try {
+          const { id, error } = await socket.emitWithAck('produce', { kind, rtpParameters });
+          if (error) return errback(new Error(error));
+          callback({ id });
+        } catch (err) {
+          errback(err as Error);
+        }
+      });
+
+      sendTransport.on('connectionstatechange', (state) => {
+        console.log('Send transport state:', state);
+      });
+
       // TODO (left off here):
       // Connect to the socket
       // Construct the transports
@@ -82,9 +115,7 @@ class voiceConnection {
 async function init() {
   device = new Device();
 
-  // 1. Get router RTP capabilities and load the Device
-  const routerRtpCapabilities = await socket.emitWithAck('getRouterRtpCapabilities');
-  await device.load({ routerRtpCapabilities });
+
 
   // 2. Create send and recv transports
   await createSendTransport();
@@ -115,32 +146,7 @@ async function init() {
 // ─── Send Transport ───────────────────────────────────────────────────────────
 
 async function createSendTransport() {
-  const params = await socket.emitWithAck('createSendTransport');
 
-  sendTransport = device.createSendTransport(params);
-
-  sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
-    try {
-      await socket.emitWithAck('connectSendTransport', { dtlsParameters });
-      callback();
-    } catch (err) {
-      errback(err as Error);
-    }
-  });
-
-  sendTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
-    try {
-      const { id, error } = await socket.emitWithAck('produce', { kind, rtpParameters });
-      if (error) return errback(new Error(error));
-      callback({ id });
-    } catch (err) {
-      errback(err as Error);
-    }
-  });
-
-  sendTransport.on('connectionstatechange', (state) => {
-    console.log('Send transport state:', state);
-  });
 }
 
 // ─── Recv Transport ───────────────────────────────────────────────────────────
