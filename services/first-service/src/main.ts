@@ -77,11 +77,6 @@ const indexPage = indexPageTemplate.replaceAll(/[{]{2}\s*CLIENT_ID\s*[}]{2}/g, C
 app.use('/static', express.static(path.resolve(PATH_THIS_FILE, "../static")))
 
 app.get('/', (req: Request, res: Response) => {
-    res.send("Typescript with express!");
-});
-
-// Going to leave this in main instead of moving it to auth.ts, because this is more related to the presenter service.
-app.get('/auth', (req: Request, res: Response) => {
 	res.send(indexPage);
 });
 
