@@ -537,8 +537,12 @@
         return data.token;
       }
 
+      function getChannelType(channel) {
+        return channel?.type === "Voice" ? "Voice" : "Text";
+      }
+
       function getFirstTextChannel(guild) {
-        return (guild?.channels ?? []).find(channel => channel.type === "Text") ?? null;
+        return (guild?.channels ?? []).find(channel => getChannelType(channel) === "Text") ?? null;
       }
 
       async function getFriendlyNameForUser(userID) {
@@ -824,7 +828,7 @@
         }
 
         async function connectToVoiceChannel(channel) {
-          if (!selectedGuild?._id || !channel?._id || channel.type !== "Voice") return;
+          if (!selectedGuild?._id || !channel?._id || getChannelType(channel) !== "Voice") return;
 
           setVoiceError("");
           setVoiceConnectingChannelId(channel._id);
@@ -1344,7 +1348,7 @@
 
               <div className="channel-list-title">Text</div>
               <ul className="list">
-                ${(selectedGuild?.channels ?? []).filter(c => c.type === "Text").map(c => html`
+                ${(selectedGuild?.channels ?? []).filter(c => getChannelType(c) === "Text").map(c => html`
                   <li
                     key=${c._id}
                     className=${`item sidebar-item ${selectedChannel?._id === c._id ? "active" : ""}`}
@@ -1357,7 +1361,7 @@
 
               <div className="channel-list-title">Voice</div>
               <ul className="list">
-                ${(selectedGuild?.channels ?? []).filter(c => c.type === "Voice").map(c => html`
+                ${(selectedGuild?.channels ?? []).filter(c => getChannelType(c) === "Voice").map(c => html`
                   <li
                     key=${c._id}
                     className=${`item sidebar-item ${activeVoiceChannel?._id === c._id ? "active" : ""}`}
