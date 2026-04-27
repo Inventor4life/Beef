@@ -95,7 +95,7 @@ const server = https.createServer({key, cert}, app).listen(PORT, HOST, () => {
 
 connectToDb().then(() => console.log("DB connected.")).catch((err) => console.error("Failed to connect to DB:", err));
 
-await voice_init(server)
+await voice_init(server, HOST)
 
 process.on('SIGTERM', async () => {
 	server.close();

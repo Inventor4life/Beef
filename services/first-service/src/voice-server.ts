@@ -86,9 +86,9 @@ class VoiceRoom {
   }
   
 
-  async createWebRtcTransport(): Promise<mediasoup.types.WebRtcTransport> {
+  async createWebRtcTransport(publicHost: string): Promise<mediasoup.types.WebRtcTransport> {
     return await this.router!.createWebRtcTransport({
-      listenIps: [{ ip: '0.0.0.0', announcedIp: '192.168.0.5' }],
+      listenIps: [{ ip: '0.0.0.0', announcedIp: publicHost }],
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,
@@ -96,7 +96,7 @@ class VoiceRoom {
   }
 }
 
-export async function voice_init(server: HttpsServer) {
+export async function voice_init(server: HttpsServer, publicHost: String) {
   worker = await mediasoup.createWorker({
     logLevel: 'warn',
     rtcMinPort: 10000,
@@ -156,7 +156,7 @@ export async function voice_init(server: HttpsServer) {
     // 2. Client requests a transport for sending media (client → server)
     socket.on('createSendTransport', async (callback: Function) => {
       try {
-        const transport = await socket.data.room.createWebRtcTransport();
+        const transport = await socket.data.room.createWebRtcTransport(publicHost);
         socket.data.room.transports.set(`${socket.id}-send`, transport);
 
         callback({
@@ -174,7 +174,7 @@ export async function voice_init(server: HttpsServer) {
     // 3. Client requests a transport for receiving media (server → client)
     socket.on('createRecvTransport', async (callback: Function) => {
       try {
-        const transport = await socket.data.room.createWebRtcTransport();
+        const transport = await socket.data.room.createWebRtcTransport(publicHost);
         socket.data.room.transports.set(`${socket.id}-recv`, transport);
 
         callback({
