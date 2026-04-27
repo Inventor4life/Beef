@@ -35,7 +35,7 @@ export default class VoiceClient {
     this.container = container
   }
 
-  async connect(token: String) {
+  async connect(token: String, thisUserID: String) {
     if (this.status !== "disconnected"){
       this.disconnect()
     }
@@ -121,7 +121,7 @@ export default class VoiceClient {
       });
 
       // THEN fetch existing producers
-      const existingUsers: String[] = []
+      const existingUsers: String[] = [thisUserID]
       const existingProducers: { producerId: string; kind: string; userId: String }[] = await this.socket.emitWithAck('getProducers');
       for (const { producerId, userId } of existingProducers) {
         if (this.consumedProducers.has(producerId)) continue; // deduplicate
