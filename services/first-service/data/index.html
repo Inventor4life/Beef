@@ -1016,7 +1016,7 @@
                     className=${`item sidebar-item ${selectedChannel?._id === c._id ? "active" : ""}`}
                     onClick=${() => setSelectedChannel(c)}
                   >
-                    # ${c.friendlyName}
+                  ${c?.type === "Voice" ? "🔊\ufe0e" : "#"} ${c.friendlyName}
                   </li>
                 `)}
               </ul>
