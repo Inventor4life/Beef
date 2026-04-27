@@ -49,7 +49,7 @@ type InviteCallResult =
 const secretKey: string = process.env.JWT_SECRET!; // sha256 of SuperSecretAuthKey
 const options: SignOptions = {
   issuer: "myAuthService",
-  audience: "beef-voice",
+  audience: "beef-live",
   algorithm: 'HS256',
   expiresIn: Number(process.env.JWT_EXPIRY) // in seconds.
 }
@@ -694,7 +694,12 @@ router.post('/guilds/:guildID/channels/:channelID/token', requireAuth, requireSc
             channel_type = "Voice"
         }
 
-        const token = jwt.sign({"sub":res.locals.user?.sub, "type":channel_type}, secretKey, options)
+        const token = jwt.sign({
+            "sub":res.locals.user?.sub,
+            "type":channel_type,
+            "channel":channelID,
+            "guild":guildID
+        }, secretKey, options)
         res.status(201).json({ token: token });
         
     } catch (err) {
