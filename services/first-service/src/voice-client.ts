@@ -6,9 +6,10 @@ import { io, Socket } from 'socket.io-client';
 class voiceConnection {
   socket?: Socket;
 
-  device: Device = new Device();
+  device?: Device;
   sendTransport?: Transport;
   recvTransport?: Transport;
+  consumedProducers = new Set<String>();
 
   status: "disconnected" | "connecting" | "connected" = "disconnected"
 
@@ -29,18 +30,22 @@ class voiceConnection {
       this.disconnect()
     }
     this.status = "connecting"
+    this.device = new Device();
 
     try {
-      this.socket = io({path: "/voice"})
+      this.socket = io({
+        path: "/voice",
+        auth: { token: token }
+      })
+
+      this.socket.on('connect_error', (err) => {
+        console.log("connection failed")
+        this.disconnect()
+      })
 
       this.socket.on("disconnect", (event) => {
         this.disconnect()
       })
-
-      let status = await this.socket.emitWithAck("authenticate", {token: token} )
-      if(status !== "success") {
-        throw new Error("voiceConnection: Permission Denied")
-      }
 
       // Get router RTP capabilities and load the Device
       const routerRtpCapabilities = await this.socket.emitWithAck('getRouterRtpCapabilities');
@@ -95,6 +100,30 @@ class voiceConnection {
         console.log('Recv transport state:', state);
       });
 
+      // New code
+      // Register handler FIRST so we don't miss any
+      this.socket.on('newProducer', async ({ producerId, userId }: { producerId: string; userId: String }) => {
+        if (this.consumedProducers.has(producerId)) return;
+        this.consumedProducers.add(producerId)
+        await this.#consumeProducer(producerId);
+        if (this.connect_callback) this.connect_callback([userId])
+        this.connected_users.push(userId)
+      });
+
+      // THEN fetch existing producers
+      const existingUsers: String[] = []
+      const existingProducers: { producerId: string; kind: string; userId: String }[] = await this.socket.emitWithAck('getProducers');
+      for (const { producerId, userId } of existingProducers) {
+        if (this.consumedProducers.has(producerId)) continue; // deduplicate
+        this.consumedProducers.add(producerId);
+        await this.#consumeProducer(producerId);
+        this.connected_users.push(userId)
+        existingUsers.push(userId)
+      }
+
+      if(this.connect_callback) this.connect_callback(existingUsers)
+
+      /* Old code
       // Get and handle current producers
       const existingProducers: { producerId: string; kind: string; userId: String }[] = await this.socket.emitWithAck('getProducers');
       for (const { producerId } of existingProducers) {
@@ -102,7 +131,7 @@ class voiceConnection {
       }
       const existingUsers = existingProducers.map(producer => producer.userId)
       if(this.connect_callback) this.connect_callback(existingUsers)
-        this.connected_users.push(...existingUsers)
+      this.connected_users.push(...existingUsers)
 
       // Add handler for new producers
       this.socket.on('newProducer', async ({ producerId, userId }: { producerId: string; userId: String }) => {
@@ -110,6 +139,7 @@ class voiceConnection {
         if (this.connect_callback)this.connect_callback([userId])
         this.connected_users.push(userId)
       });
+      */
 
       // Add handler for deleted producers
       this.socket.on('producerClosed', ({ consumerId, userId }: { consumerId: string, userId: String }) => {
@@ -120,7 +150,7 @@ class voiceConnection {
         if (el) el.remove();
         if(this.disconnect_callback) this.disconnect_callback([userId])
         let index = this.connected_users.findIndex(user => user === userId)
-        if(index !== -1) this.connected_users.splice(index)
+        if(index !== -1) this.connected_users.splice(index, 1)
       });
 
       this.status = "connected"
@@ -155,6 +185,7 @@ class voiceConnection {
       delete this.socket;
       delete this.sendTransport;
       delete this.recvTransport;
+      this.consumedProducers.clear();
       this.status = "disconnected"
     }
   }
@@ -162,7 +193,7 @@ class voiceConnection {
   async #consumeProducer(producerId: string) {
     const result = await this.socket?.emitWithAck('consume', {
       producerId,
-      rtpCapabilities: this.device.recvRtpCapabilities,
+      rtpCapabilities: this.device!.recvRtpCapabilities,
     });
 
     if (result.error) {
@@ -191,9 +222,7 @@ class voiceConnection {
       console.error('Failed to resume consumer:', error);
     }
 
-    consumer.on('transportclose', () => {
-      this.disconnect()
-    });
+    // No transport close event. The elements are removed during our disconnect procedure
 
   }
 
