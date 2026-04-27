@@ -388,6 +388,39 @@
         if (!res.ok) throw new Error(`GET messages failed (${res.status})`);
         return await res.json();
       }
+      async function apiPostGuild(friendlyName) {
+        const res = await fetch("/guilds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ friendlyName }),
+        });
+
+        if (res.status === 401) return null;
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`POST /guilds failed (${res.status}). ${t}`.trim());
+        }
+
+        return await res.json();
+      }
+
+      async function apiPostChannel(guildId, friendlyName, type) {
+        const res = await fetch(`/guilds/${guildId}/channels`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ friendlyName, type }),
+        });
+
+        if (res.status === 401) return null;
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`POST /guilds/${guildId}/channels failed (${res.status}). ${t}`.trim());
+        }
+
+        return await res.json();
+      }
       async function apiPostChannelMessage(guildId, channelId, content) {
         const res = await fetch(`/guilds/${guildId}/channels/${channelId}/messages`, {
           method: "POST",
@@ -554,6 +587,9 @@
       function MessagesPage({ user, setUser, setStatus }) {
         const [showCreateGuild, setShowCreateGuild] = useState(false);
         const [newGuildName, setNewGuildName] = useState("");
+        const [showCreateChannel, setShowCreateChannel] = useState(false);
+        const [newChannelName, setNewChannelName] = useState("");
+        const [newChannelType, setNewChannelType] = useState("Text");
         const [loading, setLoading] = useState(true);
         const [syncing, setSyncing] = useState(false);
         const [meLoading, setMeLoading] = useState(false);
@@ -825,7 +861,59 @@
             setStatus({ kind: "error", msg: e?.message ?? String(e) });
           }
         }
+        async function createGuild() {
+          const friendlyName = newGuildName.trim();
+          if (!friendlyName) return;
 
+          try {
+            const created = await apiPostGuild(friendlyName);
+
+            if (created === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
+
+            setNewGuildName("");
+            setShowCreateGuild(false);
+            setGuilds(prev => [...prev, created]);
+            setSelectedGuild(created);
+            setSelectedChannel(null);
+            setStatus({ kind: "idle", msg: "" });
+          } catch (e) {
+            setStatus({ kind: "error", msg: e?.message ?? String(e) });
+          }
+        }
+
+        async function createChannel() {
+          const friendlyName = newChannelName.trim();
+          if (!friendlyName || !selectedGuild?._id) return;
+
+          try {
+            const created = await apiPostChannel(selectedGuild._id, friendlyName, newChannelType);
+
+            if (created === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
+
+            setNewChannelName("");
+            setShowCreateChannel(false);
+
+            const updatedGuild = {
+              ...selectedGuild,
+              channels: [...(selectedGuild.channels ?? []), created],
+            };
+
+            setSelectedGuild(updatedGuild);
+            setSelectedChannel(created);
+            setGuilds(prev => prev.map(g => g._id === updatedGuild._id ? updatedGuild : g));
+            setStatus({ kind: "idle", msg: "" });
+          } catch (e) {
+            setStatus({ kind: "error", msg: e?.message ?? String(e) });
+          }
+        }
         return html`
           <div>
             <div className="row">
@@ -869,19 +957,66 @@
                   ${selectedGuild ? selectedGuild.friendlyName : "Channels"}
                 </div>
 
+                <button onClick=${() => setShowCreateGuild(v => !v)}>
+                  ${showCreateGuild ? "Cancel Guild" : "+ Guild"}
+                </button>
+
+                ${showCreateGuild && html`
+                  <div className="spacer"></div>
+                  <div className="row">
+                    <input
+                      style=${{ flex: 1 }}
+                      placeholder="Guild name..."
+                      value=${newGuildName}
+                      onInput=${(e) => setNewGuildName(e.target.value)}
+                      onKeyDown=${(e) => { if (e.key === "Enter") createGuild(); }}
+                    />
+                    <button onClick=${createGuild}>Save</button>
+                  </div>
+                `}
+
                 <div className="spacer"></div>
 
-                <ul className="list">
-                  ${(selectedGuild?.channels ?? []).map(c => html`
-                    <li
-                      key=${c._id}
-                      className=${`item sidebar-item ${selectedChannel?._id === c._id ? "active" : ""}`}
-                      onClick=${() => setSelectedChannel(c)}
+                ${selectedGuild && user?._id === selectedGuild.owner && html`
+                  <button onClick=${() => setShowCreateChannel(v => !v)}>
+                    ${showCreateChannel ? "Cancel Channel" : "+ Channel"}
+                  </button>
+                `}
+
+                ${showCreateChannel && selectedGuild && user?._id === selectedGuild.owner && html`
+                  <div className="spacer"></div>
+                  <div className="row">
+                    <input
+                      style=${{ flex: 1 }}
+                      placeholder="Channel name..."
+                      value=${newChannelName}
+                      onInput=${(e) => setNewChannelName(e.target.value)}
+                      onKeyDown=${(e) => { if (e.key === "Enter") createChannel(); }}
+                    />
+                    <select
+                      value=${newChannelType}
+                      onChange=${(e) => setNewChannelType(e.target.value)}
                     >
-                      # ${c.friendlyName}
-                    </li>
-                  `)}
-                </ul>
+                      <option value="Text">Text</option>
+                      <option value="Voice">Voice</option>
+                    </select>
+                    <button onClick=${createChannel}>Save</button>
+                  </div>
+                `}
+
+                <div className="spacer"></div>
+
+              <ul className="list">
+                ${(selectedGuild?.channels ?? []).map(c => html`
+                  <li
+                    key=${c._id}
+                    className=${`item sidebar-item ${selectedChannel?._id === c._id ? "active" : ""}`}
+                    onClick=${() => setSelectedChannel(c)}
+                  >
+                    # ${c.friendlyName}
+                  </li>
+                `)}
+              </ul>
               </div>
 
               <div className="messages-panel">
