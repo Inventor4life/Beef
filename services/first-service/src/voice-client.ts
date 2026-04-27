@@ -13,7 +13,7 @@ import { io, Socket } from 'socket.io-client';
 //  1. Use 'tsc' or 'npx tsc' in the terminal to compile from typescript to javascript
 //  2. Use 'webpack' or 'npx webpack' to take the javascript library and bundle it for the client.
 
-class voiceConnection {
+export default class VoiceClient {
   socket?: Socket;
 
   device?: Device;
@@ -30,7 +30,7 @@ class voiceConnection {
 
   constructor(container: HTMLElement) {
     if(!container) {
-      console.log("Error: voiceConnection constructor not provided with containing element")
+      console.log("Error: VoiceClient constructor not provided with containing element")
     }
     this.container = container
   }
@@ -257,3 +257,5 @@ class voiceConnection {
     }
   }
 }
+
+(window as any).VoiceClient = VoiceClient;
