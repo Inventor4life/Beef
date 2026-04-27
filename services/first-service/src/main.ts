@@ -12,6 +12,7 @@ import guildRoutes from "./guilds.js";
 import inviteRoutes from "./invites.js";
 import userRoutes from "./users.js"
 import { authRoutes, authUseAgent, setLocalUrlPrefix } from "./auth.js";
+import { voice_init } from "./voice-server.js";
 
 // I would rather the process title be set in the startup script, but we haven't gotten that working reliably.
 // My gut says this service should have little to no concept of what the process title is, because it doesn't yet need
@@ -93,6 +94,8 @@ const server = https.createServer({key, cert}, app).listen(PORT, HOST, () => {
 });
 
 connectToDb().then(() => console.log("DB connected.")).catch((err) => console.error("Failed to connect to DB:", err));
+
+await voice_init(server)
 
 process.on('SIGTERM', async () => {
 	server.close();

@@ -3,6 +3,16 @@ import type { Transport, Producer, Consumer, DtlsParameters } from 'mediasoup-cl
 import { types } from 'mediasoup-client';
 import { io, Socket } from 'socket.io-client';
 
+// Note:
+// This code is super messy, in terms of component breakup.
+// It will be hard to refactor, but right now we need something
+//  functional and quick to use.
+
+// Note 2:
+// THIS FILE IS BUNDLED USING WEBPACK. CHANGES HERE WILL NOT BE REFLECTED FOR THE CLIENT UNLESS THE FOLLOWING HAPPENS:
+//  1. Use 'tsc' or 'npx tsc' in the terminal to compile from typescript to javascript
+//  2. Use 'webpack' or 'npx webpack' to take the javascript library and bundle it for the client.
+
 class voiceConnection {
   socket?: Socket;
 

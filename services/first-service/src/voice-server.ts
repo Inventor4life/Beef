@@ -4,6 +4,11 @@ import { Server as HttpsServer } from "https"
 import jwt from "jsonwebtoken"
 import type { JwtPayload, VerifyOptions } from "jsonwebtoken";
 
+// Note:
+// This code is super messy, in terms of component breakup.
+// It will be hard to refactor, but right now we need something
+//  functional and quick to use.
+
 const options: VerifyOptions = {
   issuer: "myAuthService",
   audience: "beef-live",
@@ -60,7 +65,7 @@ class VoiceRoom {
           this.status = "idle"; // Reset so it can be retried
           throw err;
         }
-        this.routerPromise = undefined
+        delete this.routerPromise;
         break;
       case "opening":
         await this.routerPromise
@@ -76,7 +81,7 @@ class VoiceRoom {
     console.log("Closing room ", this.id)
     this.status = "idle"
     this.router?.close()
-    this.router = undefined
+    delete this.router;
     // This should only be called if there are no participants
   }
   
