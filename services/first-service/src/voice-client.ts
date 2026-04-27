@@ -1,5 +1,6 @@
 import { Device } from 'mediasoup-client'
-import type { Transport, Producer, Consumer } from 'mediasoup-client/types';
+import type { Transport, Producer, Consumer, DtlsParameters } from 'mediasoup-client/types';
+import { types } from 'mediasoup-client';
 import { io, Socket } from 'socket.io-client';
 
 // Note:
@@ -45,7 +46,7 @@ function decodeUserIDFromToken(token: string): UserID | null {
   }
 }
 
-export default class voiceConnection {
+export default class VoiceClient {
   socket?: Socket;
 
   device?: Device;
@@ -67,17 +68,17 @@ export default class voiceConnection {
 
   constructor(container: HTMLElement) {
     if(!container) {
-      console.log("Error: voiceConnection constructor not provided with containing element")
+      console.log("Error: VoiceClient constructor not provided with containing element")
     }
     this.container = container
   }
 
-  async connect(token: string) {
+  async connect(token: String, thisUserID?: String) {
     if (this.status !== "disconnected"){
       this.disconnect()
     }
 
-    const thisUserID = decodeUserIDFromToken(token);
+    const currentUserID = thisUserID?.toString() ?? decodeUserIDFromToken(token.toString());
     this.status = "connecting"
     this.device = new Device();
 
@@ -88,11 +89,11 @@ export default class voiceConnection {
       })
 
       this.socket.on('connect_error', (err) => {
-        console.log("connection failed", err)
+        console.log("connection failed")
         this.disconnect()
       })
 
-      this.socket.on("disconnect", () => {
+      this.socket.on("disconnect", (event) => {
         this.disconnect()
       })
 
@@ -107,7 +108,7 @@ export default class voiceConnection {
 
       this.sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
         try {
-          // Spclet
+          // Spclet 
           await this.socket?.emitWithAck('connectSendTransport', { dtlsParameters });
           callback();
         } catch (err) {
@@ -129,7 +130,7 @@ export default class voiceConnection {
         console.log('Send transport state:', state);
       });
 
-      await this.#publishLocalMedia(thisUserID)
+      await this.#publishLocalMedia(currentUserID)
 
       // Create our receiving transport
       const rparams = await this.socket.emitWithAck('createRecvTransport');
@@ -149,27 +150,46 @@ export default class voiceConnection {
         console.log('Recv transport state:', state);
       });
 
-      // Register handler first so we don't miss any new producers.
+      // New code
+      // Register handler FIRST so we don't miss any
       this.socket.on('newProducer', async ({ producerId, userId }: { producerId: string; userId: string }) => {
         if (this.consumedProducers.has(producerId)) return;
         this.consumedProducers.add(producerId)
         await this.#consumeProducer(producerId, userId);
-
-        const joinedUsers = this.#rememberUsers([userId]);
-        if (joinedUsers.length > 0) this.connect_callback?.(joinedUsers)
+        if (this.connect_callback) this.connect_callback([userId])
+        this.connected_users.push(userId)
       });
 
-      const existingUsers = this.#rememberUsers(thisUserID ? [thisUserID] : []);
+      // THEN fetch existing producers
+      const existingUsers: string[] = currentUserID ? [currentUserID] : []
       const existingProducers: { producerId: string; kind: string; userId: string }[] = await this.socket.emitWithAck('getProducers');
-
       for (const { producerId, userId } of existingProducers) {
-        if (this.consumedProducers.has(producerId)) continue;
+        if (this.consumedProducers.has(producerId)) continue; // deduplicate
         this.consumedProducers.add(producerId);
         await this.#consumeProducer(producerId, userId);
-        existingUsers.push(...this.#rememberUsers([userId]))
+        this.connected_users.push(userId)
+        existingUsers.push(userId)
       }
 
-      if(existingUsers.length > 0) this.connect_callback?.(existingUsers)
+      if(this.connect_callback) this.connect_callback(existingUsers)
+
+      /* Old code
+      // Get and handle current producers
+      const existingProducers: { producerId: string; kind: string; userId: String }[] = await this.socket.emitWithAck('getProducers');
+      for (const { producerId } of existingProducers) {
+        await this.#consumeProducer(producerId);
+      }
+      const existingUsers = existingProducers.map(producer => producer.userId)
+      if(this.connect_callback) this.connect_callback(existingUsers)
+      this.connected_users.push(...existingUsers)
+
+      // Add handler for new producers
+      this.socket.on('newProducer', async ({ producerId, userId }: { producerId: string; userId: String }) => {
+        await this.#consumeProducer(producerId);
+        if (this.connect_callback)this.connect_callback([userId])
+        this.connected_users.push(userId)
+      });
+      */
 
       // Add handler for deleted producers
       this.socket.on('producerClosed', ({ consumerId, userId }: { consumerId: string, userId?: string }) => {
@@ -183,8 +203,9 @@ export default class voiceConnection {
 
         if (typeof userId !== "string") return;
 
-        const leavingUsers = this.#forgetUsers([userId]);
-        if(leavingUsers.length > 0) this.disconnect_callback?.(leavingUsers)
+        if(this.disconnect_callback) this.disconnect_callback([userId])
+        let index = this.connected_users.findIndex(user => user === userId)
+        if(index !== -1) this.connected_users.splice(index, 1)
       });
 
       this.status = "connected"
@@ -198,11 +219,11 @@ export default class voiceConnection {
     return this.status
   }
 
-  onUserJoin(connect_callback: UserListCallback) {
+  onUserConnect(connect_callback: UserListCallback) {
     this.connect_callback = connect_callback
   }
 
-  onUserLeave(disconnect_callback: UserListCallback) {
+  onUserDisconnect(disconnect_callback: UserListCallback) {
     this.disconnect_callback = disconnect_callback
   }
 
@@ -210,63 +231,33 @@ export default class voiceConnection {
     this.speaking_callback = speaking_callback
   }
 
-  onUserConnect(connect_callback: UserListCallback) {
-    this.onUserJoin(connect_callback)
+  onUserJoin(connect_callback: UserListCallback) {
+    this.onUserConnect(connect_callback)
   }
 
-  onUserDisconnect(disconnect_callback: UserListCallback) {
-    this.onUserLeave(disconnect_callback)
+  onUserLeave(disconnect_callback: UserListCallback) {
+    this.onUserDisconnect(disconnect_callback)
   }
 
   disconnect()  {
-    if(this.status === "disconnected") return;
-
-    const leavingUsers = [...this.connected_users];
-    this.status = "disconnected"
-
-    this.sendTransport?.close()
-    this.recvTransport?.close()
-    this.socket?.close()
-    this.#stopAllVoiceActivityMonitors()
-    this.localMediaStream?.getTracks().forEach(track => track.stop())
-    delete this.localMediaStream
-    this.connected_users = []
-    if(this.container) { // Clear container <audio> elements
-      this.container.innerHTML = ''
+    if(this.status !== "disconnected") {
+      this.sendTransport?.close()
+      this.recvTransport?.close()
+      this.socket?.close()
+      this.#stopAllVoiceActivityMonitors()
+      this.localMediaStream?.getTracks().forEach(track => track.stop())
+      delete this.localMediaStream
+      this.disconnect_callback?.(this.connected_users ?? [])
+      this.connected_users = []
+      if(this.container) { // Clear container <audio> elements
+        this.container.innerHTML = ''
+      }
+      delete this.socket;
+      delete this.sendTransport;
+      delete this.recvTransport;
+      this.consumedProducers.clear();
+      this.status = "disconnected"
     }
-    delete this.socket;
-    delete this.sendTransport;
-    delete this.recvTransport;
-    this.consumedProducers.clear();
-
-    if(leavingUsers.length > 0) this.disconnect_callback?.(leavingUsers)
-  }
-
-  #rememberUsers(users: UserID[]): UserID[] {
-    const joinedUsers: UserID[] = [];
-
-    for (const user of users) {
-      if (!user || this.connected_users.includes(user)) continue;
-
-      this.connected_users.push(user);
-      joinedUsers.push(user);
-    }
-
-    return joinedUsers;
-  }
-
-  #forgetUsers(users: UserID[]): UserID[] {
-    const leavingUsers: UserID[] = [];
-
-    for (const user of users) {
-      const index = this.connected_users.findIndex(connectedUser => connectedUser === user);
-      if(index === -1) continue;
-
-      this.connected_users.splice(index, 1)
-      leavingUsers.push(user)
-    }
-
-    return leavingUsers;
   }
 
   #startVoiceActivityMonitor(userId: UserID | null, stream: MediaStream, monitorKey: string) {
@@ -400,7 +391,7 @@ export default class voiceConnection {
     if(this.container) this.container.appendChild(el);
     this.#startVoiceActivityMonitor(userId, stream, consumer.id);
 
-    // Signal server that we're ready -- it will resume the consumer
+    // Signal server that we're ready — it will resume the consumer
     const { error } = await this.socket!.emitWithAck('resumeConsumer', { consumerId: consumer.id });
     if (error) {
       console.error('Failed to resume consumer:', error);
@@ -434,5 +425,5 @@ export default class voiceConnection {
   }
 }
 
-(window as any).voiceConnection = voiceConnection;
-(window as any).VoiceClient = voiceConnection;
+(window as any).VoiceClient = VoiceClient;
+(window as any).voiceConnection = VoiceClient;
