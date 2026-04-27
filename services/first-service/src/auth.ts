@@ -217,13 +217,9 @@ authRoutes.post('/auth', async (req: Request, res: Response) => {
       httpOnly: true,
       secure: true,
       sameSite: "strict"
-    }).redirect("#/chat")//("/auth#/messages")
+    }).redirect("/#/chat")//("/#/chat")
 
     return;
   }
   res.status(500).json({error: "Internal server error"}) // This might be reached if POSTing a user fails twice in a row.
-});
-
-authRoutes.get('/test-auth', requireAuth, (req: Request, res: Response) => {
-	res.json({ user: res.locals.user });
 });

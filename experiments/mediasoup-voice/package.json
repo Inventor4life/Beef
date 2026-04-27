@@ -1,0 +1,29 @@
+{
+  "name": "mediasoup-voice",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "tsc && npx webpack && node build/main.js"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.6.0",
+    "@types/socket.io": "^3.0.1",
+    "@types/ws": "^8.18.1",
+    "express": "^5.2.1",
+    "mediasoup": "^3.19.19",
+    "mediasoup-client": "^3.19.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "webpack": "^5.106.2",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "webpack-cli": "^7.0.2"
+  }
+}
