@@ -309,6 +309,114 @@ router.get('/guilds/:guildID', requireAuth, requireScope("user", "service"), asy
     }
 });
 
+router.get('/guilds/:guildID/short', async (req: Request, res: Response) => {
+    if (!isDbConnected()) {
+        res.status(503).json({ error: "database not connected" });
+        return;
+    }
+
+    const guildIDUnpadded = req.params.guildID;
+    if (!guildIDUnpadded || typeof guildIDUnpadded !== 'string') {
+        res.status(400).json({ error: "guildID is required and must be a string" });
+        return;
+    }
+
+    const guildID = guildIDUnpadded.padStart(20, "0");
+
+    try {
+        const guild = await getCollection<Guild>("guilds").findOne({ _id: guildID });
+        if (!guild) {
+            res.status(404).json({ error: "guild not found" });
+            return;
+        }
+
+        res.status(200).json({
+            _id: guild._id,
+            friendlyName: guild.friendlyName
+        });
+    } catch (err) {
+        console.log("GET /guilds/:guildID/short error querying guild:", err);
+        res.status(503).json({ error: "failed to query guild from database" });
+    }
+});
+
+router.post('/guilds/:guildID/members', requireAuth, requireScope("service"), async (req: Request, res: Response) => {
+    if (!isDbConnected()) {
+        res.status(503).json({ error: "database not connected" });
+        return;
+    }
+
+    const guildIDUnpadded = req.params.guildID;
+    if (!guildIDUnpadded || typeof guildIDUnpadded !== 'string') {
+        res.status(400).json({ error: "guildID is required and must be a string" });
+        return;
+    }
+
+    const { userID } = req.body;
+    if (!userID || typeof userID !== 'string') {
+        res.status(400).json({ error: "userID is required and must be a string" });
+        return;
+    }
+
+    const guildID = guildIDUnpadded.padStart(20, "0");
+    const normalizedUserID = userID.padStart(20, "0");
+    let guild: Guild | null;
+
+    try {
+        guild = await getCollection<Guild>("guilds").findOne({ _id: guildID });
+    } catch (err) {
+        console.log("POST /guilds/:guildID/members error querying guild:", err);
+        res.status(503).json({ error: "failed to query guild from database" });
+        return;
+    }
+
+    if (!guild) {
+        res.status(404).json({ error: "guild not found" });
+        return;
+    }
+
+    if (guild.members.includes(normalizedUserID)) {
+        res.status(200).end();
+        return;
+    }
+
+    const membershipResult = await addUserGuildMembership(normalizedUserID, guildID);
+    if (!membershipResult.ok) {
+        if (membershipResult.status === 404) {
+            res.status(404).json({ error: "guild or user not found" });
+            return;
+        }
+
+        if (membershipResult.status === 409) {
+            res.status(409).json({ error: "user guild limit exceeded" });
+            return;
+        }
+
+        console.log("POST /guilds/:guildID/members failed to update user guildMemberships:", membershipResult.status, membershipResult.message);
+        res.status(500).json({ error: "failed to update user guild memberships" });
+        return;
+    }
+
+    try {
+        const updateResult = await getCollection<Guild>("guilds").updateOne(
+            { _id: guildID },
+            { $push: { members: normalizedUserID } }
+        );
+
+        if (!updateResult.acknowledged || updateResult.modifiedCount !== 1) {
+            console.log("POST /guilds/:guildID/members failed to update guild:", updateResult);
+            res.status(503).json({ error: "failed to update guild members" });
+            return;
+        }
+    } catch (err) {
+        console.log("POST /guilds/:guildID/members error updating guild:", err);
+        res.status(503).json({ error: "failed to update guild members" });
+        return;
+    }
+
+    res.status(201).end();
+});
+
 router.post('/guilds/:guildID/channels', requireAuth, requireScope("user"), async (req: Request, res: Response) => {
     const friendlyName = req.body?.friendlyName;
     const type = req.body?.type;
