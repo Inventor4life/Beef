@@ -1,6 +1,5 @@
 import { Device } from 'mediasoup-client'
-import type { Transport, Producer, Consumer, DtlsParameters } from 'mediasoup-client/types';
-import { types } from 'mediasoup-client';
+import type { Transport, Producer, Consumer } from 'mediasoup-client/types';
 import { io, Socket } from 'socket.io-client';
 
 // Note:
@@ -13,32 +12,72 @@ import { io, Socket } from 'socket.io-client';
 //  1. Use 'tsc' or 'npx tsc' in the terminal to compile from typescript to javascript
 //  2. Use 'webpack' or 'npx webpack' to take the javascript library and bundle it for the client.
 
-export default class VoiceClient {
+type VoiceStatus = "disconnected" | "connecting" | "connected";
+type UserID = string;
+type UserListCallback = (users: UserID[]) => void;
+type VoiceActivityMonitor = {
+  userId: UserID;
+  context: AudioContext;
+  intervalId: number;
+  source: MediaStreamAudioSourceNode;
+  analyser: AnalyserNode;
+  data: Uint8Array<ArrayBuffer>;
+  speaking: boolean;
+  quietFrames: number;
+};
+
+const SPEAKING_RMS_THRESHOLD = 0.035;
+const QUIET_FRAMES_BEFORE_INACTIVE = 4;
+
+function decodeUserIDFromToken(token: string): UserID | null {
+  try {
+    const encodedPayload = token.split(".")[1];
+    if (!encodedPayload) return null;
+
+    const base64 = encodedPayload.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const payload = JSON.parse(globalThis.atob(paddedBase64)) as { sub?: unknown };
+
+    return typeof payload.sub === "string" ? payload.sub : null;
+  } catch (err) {
+    console.log("Unable to decode voice token user ID", err);
+    return null;
+  }
+}
+
+export default class voiceConnection {
   socket?: Socket;
 
   device?: Device;
   sendTransport?: Transport;
   recvTransport?: Transport;
-  consumedProducers = new Set<String>();
+  consumedProducers = new Set<string>();
 
-  status: "disconnected" | "connecting" | "connected" = "disconnected"
+  status: VoiceStatus = "disconnected"
 
   container: HTMLElement | null = null;
-  connected_users: String[] = [];
-  connect_callback?: (users: String[]) => void;
-  disconnect_callback?: (users: String[]) => void;
+  connected_users: UserID[] = [];
+  speaking_users = new Set<UserID>();
+  localMediaStream?: MediaStream;
+  voiceActivityMonitors = new Map<string, VoiceActivityMonitor>();
+  userActivityMonitorKeys = new Map<UserID, Set<string>>();
+  connect_callback?: UserListCallback;
+  disconnect_callback?: UserListCallback;
+  speaking_callback?: UserListCallback;
 
   constructor(container: HTMLElement) {
     if(!container) {
-      console.log("Error: VoiceClient constructor not provided with containing element")
+      console.log("Error: voiceConnection constructor not provided with containing element")
     }
     this.container = container
   }
 
-  async connect(token: String, thisUserID: String) {
+  async connect(token: string) {
     if (this.status !== "disconnected"){
       this.disconnect()
     }
+
+    const thisUserID = decodeUserIDFromToken(token);
     this.status = "connecting"
     this.device = new Device();
 
@@ -49,11 +88,11 @@ export default class VoiceClient {
       })
 
       this.socket.on('connect_error', (err) => {
-        console.log("connection failed")
+        console.log("connection failed", err)
         this.disconnect()
       })
 
-      this.socket.on("disconnect", (event) => {
+      this.socket.on("disconnect", () => {
         this.disconnect()
       })
 
@@ -68,7 +107,7 @@ export default class VoiceClient {
 
       this.sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
         try {
-          // Spclet 
+          // Spclet
           await this.socket?.emitWithAck('connectSendTransport', { dtlsParameters });
           callback();
         } catch (err) {
@@ -90,7 +129,7 @@ export default class VoiceClient {
         console.log('Send transport state:', state);
       });
 
-      await this.#publishLocalMedia()
+      await this.#publishLocalMedia(thisUserID)
 
       // Create our receiving transport
       const rparams = await this.socket.emitWithAck('createRecvTransport');
@@ -110,57 +149,42 @@ export default class VoiceClient {
         console.log('Recv transport state:', state);
       });
 
-      // New code
-      // Register handler FIRST so we don't miss any
-      this.socket.on('newProducer', async ({ producerId, userId }: { producerId: string; userId: String }) => {
+      // Register handler first so we don't miss any new producers.
+      this.socket.on('newProducer', async ({ producerId, userId }: { producerId: string; userId: string }) => {
         if (this.consumedProducers.has(producerId)) return;
         this.consumedProducers.add(producerId)
-        await this.#consumeProducer(producerId);
-        if (this.connect_callback) this.connect_callback([userId])
-        this.connected_users.push(userId)
+        await this.#consumeProducer(producerId, userId);
+
+        const joinedUsers = this.#rememberUsers([userId]);
+        if (joinedUsers.length > 0) this.connect_callback?.(joinedUsers)
       });
 
-      // THEN fetch existing producers
-      const existingUsers: String[] = [thisUserID]
-      const existingProducers: { producerId: string; kind: string; userId: String }[] = await this.socket.emitWithAck('getProducers');
+      const existingUsers = this.#rememberUsers(thisUserID ? [thisUserID] : []);
+      const existingProducers: { producerId: string; kind: string; userId: string }[] = await this.socket.emitWithAck('getProducers');
+
       for (const { producerId, userId } of existingProducers) {
-        if (this.consumedProducers.has(producerId)) continue; // deduplicate
+        if (this.consumedProducers.has(producerId)) continue;
         this.consumedProducers.add(producerId);
-        await this.#consumeProducer(producerId);
-        this.connected_users.push(userId)
-        existingUsers.push(userId)
+        await this.#consumeProducer(producerId, userId);
+        existingUsers.push(...this.#rememberUsers([userId]))
       }
 
-      if(this.connect_callback) this.connect_callback(existingUsers)
-
-      /* Old code
-      // Get and handle current producers
-      const existingProducers: { producerId: string; kind: string; userId: String }[] = await this.socket.emitWithAck('getProducers');
-      for (const { producerId } of existingProducers) {
-        await this.#consumeProducer(producerId);
-      }
-      const existingUsers = existingProducers.map(producer => producer.userId)
-      if(this.connect_callback) this.connect_callback(existingUsers)
-      this.connected_users.push(...existingUsers)
-
-      // Add handler for new producers
-      this.socket.on('newProducer', async ({ producerId, userId }: { producerId: string; userId: String }) => {
-        await this.#consumeProducer(producerId);
-        if (this.connect_callback)this.connect_callback([userId])
-        this.connected_users.push(userId)
-      });
-      */
+      if(existingUsers.length > 0) this.connect_callback?.(existingUsers)
 
       // Add handler for deleted producers
-      this.socket.on('producerClosed', ({ consumerId, userId }: { consumerId: string, userId: String }) => {
+      this.socket.on('producerClosed', ({ consumerId, userId }: { consumerId: string, userId?: string }) => {
         // Find and remove the associated media element
         const el = document.getElementById(consumerId);
         // Because we create the audio element within our container when a producer is created, this should only
         // affect elements within our container
         if (el) el.remove();
-        if(this.disconnect_callback) this.disconnect_callback([userId])
-        let index = this.connected_users.findIndex(user => user === userId)
-        if(index !== -1) this.connected_users.splice(index, 1)
+
+        this.#stopVoiceActivityMonitor(consumerId);
+
+        if (typeof userId !== "string") return;
+
+        const leavingUsers = this.#forgetUsers([userId]);
+        if(leavingUsers.length > 0) this.disconnect_callback?.(leavingUsers)
       });
 
       this.status = "connected"
@@ -170,37 +194,186 @@ export default class VoiceClient {
     }
   }
 
-  getStatus(): "disconnected" | "connecting" | "connected" {
+  getStatus(): VoiceStatus {
     return this.status
   }
 
-  onUserConnect(connect_callback: (users:String[])=>void) {
+  onUserJoin(connect_callback: UserListCallback) {
     this.connect_callback = connect_callback
   }
 
-  onUserDisconnect(disconnect_callback: (users:String[])=>void) {
+  onUserLeave(disconnect_callback: UserListCallback) {
     this.disconnect_callback = disconnect_callback
   }
 
+  onUserSpeaking(speaking_callback: UserListCallback) {
+    this.speaking_callback = speaking_callback
+  }
+
+  onUserConnect(connect_callback: UserListCallback) {
+    this.onUserJoin(connect_callback)
+  }
+
+  onUserDisconnect(disconnect_callback: UserListCallback) {
+    this.onUserLeave(disconnect_callback)
+  }
+
   disconnect()  {
-    if(this.status !== "disconnected") {
-      this.sendTransport?.close()
-      this.recvTransport?.close()
-      this.socket?.close()
-      this.disconnect_callback?.(this.connected_users ?? [])
-      this.connected_users = []
-      if(this.container) { // Clear container <audio> elements
-        this.container.innerHTML = ''
+    if(this.status === "disconnected") return;
+
+    const leavingUsers = [...this.connected_users];
+    this.status = "disconnected"
+
+    this.sendTransport?.close()
+    this.recvTransport?.close()
+    this.socket?.close()
+    this.#stopAllVoiceActivityMonitors()
+    this.localMediaStream?.getTracks().forEach(track => track.stop())
+    delete this.localMediaStream
+    this.connected_users = []
+    if(this.container) { // Clear container <audio> elements
+      this.container.innerHTML = ''
+    }
+    delete this.socket;
+    delete this.sendTransport;
+    delete this.recvTransport;
+    this.consumedProducers.clear();
+
+    if(leavingUsers.length > 0) this.disconnect_callback?.(leavingUsers)
+  }
+
+  #rememberUsers(users: UserID[]): UserID[] {
+    const joinedUsers: UserID[] = [];
+
+    for (const user of users) {
+      if (!user || this.connected_users.includes(user)) continue;
+
+      this.connected_users.push(user);
+      joinedUsers.push(user);
+    }
+
+    return joinedUsers;
+  }
+
+  #forgetUsers(users: UserID[]): UserID[] {
+    const leavingUsers: UserID[] = [];
+
+    for (const user of users) {
+      const index = this.connected_users.findIndex(connectedUser => connectedUser === user);
+      if(index === -1) continue;
+
+      this.connected_users.splice(index, 1)
+      leavingUsers.push(user)
+    }
+
+    return leavingUsers;
+  }
+
+  #startVoiceActivityMonitor(userId: UserID | null, stream: MediaStream, monitorKey: string) {
+    if (!userId || this.voiceActivityMonitors.has(monitorKey)) return;
+
+    const AudioContextConstructor = window.AudioContext ?? (window as any).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    const context = new AudioContextConstructor() as AudioContext;
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.25;
+
+    const source = context.createMediaStreamSource(stream);
+    source.connect(analyser);
+    void context.resume().catch(() => undefined);
+
+    const monitor: VoiceActivityMonitor = {
+      userId,
+      context,
+      intervalId: 0,
+      source,
+      analyser,
+      data: new Uint8Array(new ArrayBuffer(analyser.fftSize)),
+      speaking: false,
+      quietFrames: 0,
+    };
+
+    monitor.intervalId = window.setInterval(() => {
+      analyser.getByteTimeDomainData(monitor.data);
+
+      let sumSquares = 0;
+      for (const sample of monitor.data) {
+        const centeredSample = (sample - 128) / 128;
+        sumSquares += centeredSample * centeredSample;
       }
-      delete this.socket;
-      delete this.sendTransport;
-      delete this.recvTransport;
-      this.consumedProducers.clear();
-      this.status = "disconnected"
+
+      const rms = Math.sqrt(sumSquares / monitor.data.length);
+      const isLoud = rms > SPEAKING_RMS_THRESHOLD;
+
+      if (isLoud) {
+        monitor.quietFrames = 0;
+      } else {
+        monitor.quietFrames += 1;
+      }
+
+      const isSpeaking = isLoud || (monitor.speaking && monitor.quietFrames < QUIET_FRAMES_BEFORE_INACTIVE);
+      if (monitor.speaking === isSpeaking) return;
+
+      monitor.speaking = isSpeaking;
+      this.#refreshUserSpeakingState(userId);
+    }, 100);
+
+    this.voiceActivityMonitors.set(monitorKey, monitor);
+
+    const monitorKeys = this.userActivityMonitorKeys.get(userId) ?? new Set<string>();
+    monitorKeys.add(monitorKey);
+    this.userActivityMonitorKeys.set(userId, monitorKeys);
+  }
+
+  #stopVoiceActivityMonitor(monitorKey: string) {
+    const monitor = this.voiceActivityMonitors.get(monitorKey);
+    if (!monitor) return;
+
+    window.clearInterval(monitor.intervalId);
+    monitor.source.disconnect();
+    void monitor.context.close().catch(() => undefined);
+    this.voiceActivityMonitors.delete(monitorKey);
+
+    const monitorKeys = this.userActivityMonitorKeys.get(monitor.userId);
+    monitorKeys?.delete(monitorKey);
+
+    if (!monitorKeys || monitorKeys.size === 0) {
+      this.userActivityMonitorKeys.delete(monitor.userId);
+    }
+
+    this.#refreshUserSpeakingState(monitor.userId);
+  }
+
+  #stopAllVoiceActivityMonitors() {
+    for (const monitorKey of Array.from(this.voiceActivityMonitors.keys())) {
+      this.#stopVoiceActivityMonitor(monitorKey);
+    }
+
+    if (this.speaking_users.size > 0) {
+      this.speaking_users.clear();
+      this.speaking_callback?.([]);
     }
   }
 
-  async #consumeProducer(producerId: string) {
+  #refreshUserSpeakingState(userId: UserID) {
+    const monitorKeys = this.userActivityMonitorKeys.get(userId);
+    const isSpeaking = Array.from(monitorKeys ?? []).some(monitorKey => {
+      return this.voiceActivityMonitors.get(monitorKey)?.speaking;
+    });
+
+    if (isSpeaking) {
+      if (this.speaking_users.has(userId)) return;
+      this.speaking_users.add(userId);
+    } else {
+      if (!this.speaking_users.delete(userId)) return;
+    }
+
+    this.speaking_callback?.(Array.from(this.speaking_users));
+  }
+
+  async #consumeProducer(producerId: string, userId: UserID) {
     const result = await this.socket?.emitWithAck('consume', {
       producerId,
       rtpCapabilities: this.device!.recvRtpCapabilities,
@@ -225,8 +398,9 @@ export default class VoiceClient {
     el.autoplay = true;
     el.id = consumer.id; // Used to remove element when producer closes
     if(this.container) this.container.appendChild(el);
+    this.#startVoiceActivityMonitor(userId, stream, consumer.id);
 
-    // Signal server that we're ready — it will resume the consumer
+    // Signal server that we're ready -- it will resume the consumer
     const { error } = await this.socket!.emitWithAck('resumeConsumer', { consumerId: consumer.id });
     if (error) {
       console.error('Failed to resume consumer:', error);
@@ -236,11 +410,13 @@ export default class VoiceClient {
 
   }
 
-  async #publishLocalMedia() {
+  async #publishLocalMedia(thisUserID: UserID | null) {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: false,
       audio: true,
     });
+    this.localMediaStream = stream;
+    this.#startVoiceActivityMonitor(thisUserID, stream, "local");
 
     // Produce audio track
     for (const track of stream.getTracks()) {
@@ -258,4 +434,5 @@ export default class VoiceClient {
   }
 }
 
-(window as any).VoiceClient = VoiceClient;
+(window as any).voiceConnection = voiceConnection;
+(window as any).VoiceClient = voiceConnection;
