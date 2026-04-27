@@ -14,7 +14,7 @@ import { requireAuth } from './middleware.js'
 
 export const authRoutes = Router();
 
-dotenv.config();
+// Removing dotenv.config, because or env variables should be from process.env, which is populated from main.ts
 
 // Google JWT verification
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;

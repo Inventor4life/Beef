@@ -1,8 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import { Agent } from "undici"
 import https from "https"
 import type {Request, Response, NextFunction} from "express";
-import dotenv from "dotenv";
 import path from "path";
 import { connectToDb, closeDb, isDbConnected } from "./db.js";
 import fs from "fs";
@@ -17,7 +19,6 @@ import { authRoutes, authUseAgent, setLocalUrlPrefix } from "./auth.js";
 //  ideally it should be created by the startup script so we can package/reuse the scripts for other services.
 // Currently we have to rely on setting the process title here and hoping that it matches the status and stop scripts.
 process.title = "first-service"
-dotenv.config();
 
 const app = express();
 app.use(express.json())
