@@ -483,7 +483,7 @@
                   </span>
 
                   <div className="theme-picker">
-                    <label className="muted" htmlFor="themeSelect">Theme:</label>
+                    <label className="muted" htmlFor="themeSelect">How do you like your Beef?</label>
                     <select
                       id="themeSelect"
                       value=${theme}
@@ -936,6 +936,25 @@
             <div className="chat-layout">
               <div className="sidebar">
                 <div className="sidebar-title">Guilds</div>
+                <button onClick=${() => setShowCreateGuild(v => !v)}>
+                  ${showCreateGuild ? "Cancel Guild" : "+ Guild"}
+                </button>
+
+                ${showCreateGuild && html`
+                  <div className="spacer"></div>
+                  <div className="row">
+                    <input
+                      style=${{ flex: 1 }}
+                      placeholder="Guild name..."
+                      value=${newGuildName}
+                      onInput=${(e) => setNewGuildName(e.target.value)}
+                      onKeyDown=${(e) => { if (e.key === "Enter") createGuild(); }}
+                    />
+                    <button onClick=${createGuild}>Save</button>
+                  </div>
+                `}
+
+                <div className="spacer"></div>
                 <ul className="list">
                   ${guilds.map(g => html`
                     <li
@@ -957,25 +976,6 @@
                   ${selectedGuild ? selectedGuild.friendlyName : "Channels"}
                 </div>
 
-                <button onClick=${() => setShowCreateGuild(v => !v)}>
-                  ${showCreateGuild ? "Cancel Guild" : "+ Guild"}
-                </button>
-
-                ${showCreateGuild && html`
-                  <div className="spacer"></div>
-                  <div className="row">
-                    <input
-                      style=${{ flex: 1 }}
-                      placeholder="Guild name..."
-                      value=${newGuildName}
-                      onInput=${(e) => setNewGuildName(e.target.value)}
-                      onKeyDown=${(e) => { if (e.key === "Enter") createGuild(); }}
-                    />
-                    <button onClick=${createGuild}>Save</button>
-                  </div>
-                `}
-
-                <div className="spacer"></div>
 
                 ${selectedGuild && user?._id === selectedGuild.owner && html`
                   <button onClick=${() => setShowCreateChannel(v => !v)}>
