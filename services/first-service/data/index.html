@@ -154,6 +154,12 @@
         align-items: center;
         gap: 8px;
       }
+      .invite-code {
+        word-break: break-all;
+        overflow-wrap: anywhere;
+        font-family: monospace;
+        font-size: 13px;
+      }
     </style>
   </head>
 
@@ -439,6 +445,21 @@
         return await res.json();
       }
       
+
+      async function apiAcceptInvite(inviteCode) {
+        const res = await fetch(`/invites/${encodeURIComponent(inviteCode)}`, {
+          method: "POST",
+          credentials: "include",
+        });
+
+        if (res.status === 401) return null;
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`Accept invite failed (${res.status}). ${t}`.trim());
+        }
+
+        return true;
+      }
       function getRoute() {
         const h = window.location.hash || "#/login";
         if (h.startsWith("#/chat")) return "messages";
@@ -503,7 +524,11 @@
 
               <div className="spacer"></div>
 
-              ${status.kind === "error" && html`<div className="error">${status.msg}</div>`}
+              ${status.msg && html`
+                <div className=${status.kind === "error" ? "error" : "muted"}>
+                  ${status.msg}
+                </div>
+              `}
 
           ${route === "login"
                ? html`<${LoginPage}
@@ -600,7 +625,8 @@
         const [guilds, setGuilds] = useState([]);
         const [selectedGuild, setSelectedGuild] = useState(null);
         const [selectedChannel, setSelectedChannel] = useState(null);
-
+        const [inviteCode, setInviteCode] = useState("");
+       
         const [messages, setMessages] = useState([]);
         const [hasOlderMessages, setHasOlderMessages] = useState(true);
         const [loadingOlder, setLoadingOlder] = useState(false);
@@ -917,6 +943,28 @@
             setStatus({ kind: "error", msg: e?.message ?? String(e) });
           }
         }
+        
+
+        async function acceptInvite() {
+          const code = inviteCode.trim();
+          if (!code) return;
+
+          try {
+            const result = await apiAcceptInvite(code);
+
+            if (result === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
+
+            setInviteCode("");
+            setStatus({ kind: "idle", msg: "Invite accepted." });
+            await loadGuilds();
+          } catch (e) {
+            setStatus({ kind: "error", msg: e?.message ?? String(e) });
+          }
+        }
         return html`
           <div>
             <div className="row">
@@ -956,7 +1004,37 @@
                     <button onClick=${createGuild}>Save</button>
                   </div>
                 `}
+                <div className="spacer"></div>
 
+
+                <div className="sidebar-title">Invite</div>
+
+                ${selectedGuild?.invites?.length > 0 && html`
+                  <div className="item">
+                    <div className="muted">Guild invite code</div>
+                    <div className="invite-code">${selectedGuild.invites[0]}</div>
+                  </div>
+                `}
+
+                ${selectedGuild && (!selectedGuild.invites || selectedGuild.invites.length === 0) && html`
+                  <div className="muted">
+                    No invite code found for this guild.
+                  </div>
+                `}
+
+                <div className="spacer"></div>
+
+                <input
+                  style=${{ width: "100%", boxSizing: "border-box" }}
+                  placeholder="Invite code..."
+                  value=${inviteCode}
+                  onInput=${(e) => setInviteCode(e.target.value)}
+                  onKeyDown=${(e) => { if (e.key === "Enter") acceptInvite(); }}
+                />
+
+                <div className="spacer"></div>
+
+                <button onClick=${acceptInvite}>Accept</button>
                 <div className="spacer"></div>
                 <ul className="list">
                   ${guilds.map(g => html`
