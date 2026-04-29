@@ -154,12 +154,90 @@
         align-items: center;
         gap: 8px;
       }
+
+      .channel-list-title {
+        margin: 14px 0 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .channel-prefix {
+        display: inline-block;
+        width: 42px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .voice-strip {
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding: 10px 0;
+      }
+
+      .voice-users {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .voice-user {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .voice-user-icon {
+        width: 34px;
+        height: 34px;
+        box-sizing: border-box;
+        border: 2px solid var(--border);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--panel-2);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 700;
+        transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+      }
+
+      .voice-user-icon.speaking {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(255, 210, 216, .18), 0 0 18px rgba(255, 210, 216, .35);
+        transform: scale(1.04);
+      }
+
+      .voice-user-name {
+        max-width: 140px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      #voice-audio-streams {
+        display: none;
+      }
+      .invite-code {
+        word-break: break-all;
+        overflow-wrap: anywhere;
+        font-family: monospace;
+        font-size: 13px;
+      }
     </style>
   </head>
 
   <body>
     <div id="root"></div>
+    <div id="voice-audio-streams" aria-hidden="true"></div>
 
+    <script src="static/voice-client.js"></script>
     <script type="module">
       import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "https://esm.sh/react@18.2.0";
       import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
@@ -438,7 +516,69 @@
         }
         return await res.json();
       }
+
+      async function apiPostChannelToken(guildId, channelId) {
+        const res = await fetch(`/guilds/${guildId}/channels/${channelId}/token`, {
+          method: "POST",
+          credentials: "include",
+        });
+
+        if (res.status === 401) return null;
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`POST channel token failed (${res.status}). ${t}`.trim());
+        }
+
+        const data = await res.json();
+        if (!data?.token || typeof data.token !== "string") {
+          throw new Error("POST channel token returned an invalid response.");
+        }
+
+        return data.token;
+      }
+
+      function getChannelType(channel) {
+        return channel?.type === "Voice" ? "Voice" : "Text";
+      }
+
+      function getFirstTextChannel(guild) {
+        return (guild?.channels ?? []).find(channel => getChannelType(channel) === "Text") ?? null;
+      }
+
+      async function getFriendlyNameForUser(userID) {
+        const user = await getUser(userID);
+        if (typeof user === "string") return user;
+        return user?.friendlyName ?? "Unknown";
+      }
+
+      function getInitials(name) {
+        const initials = String(name ?? "")
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+          .map(part => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase();
+
+        return initials || "?";
+      }
       
+
+      async function apiAcceptInvite(inviteCode) {
+        const res = await fetch(`/invites/${encodeURIComponent(inviteCode)}`, {
+          method: "POST",
+          credentials: "include",
+        });
+
+        if (res.status === 401) return null;
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`Accept invite failed (${res.status}). ${t}`.trim());
+        }
+
+        return true;
+      }
       function getRoute() {
         const h = window.location.hash || "#/login";
         if (h.startsWith("#/chat")) return "messages";
@@ -503,7 +643,11 @@
 
               <div className="spacer"></div>
 
-              ${status.kind === "error" && html`<div className="error">${status.msg}</div>`}
+              ${status.msg && html`
+                <div className=${status.kind === "error" ? "error" : "muted"}>
+                  ${status.msg}
+                </div>
+              `}
 
           ${route === "login"
                ? html`<${LoginPage}
@@ -593,21 +737,135 @@
         const [showCreateChannel, setShowCreateChannel] = useState(false);
         const [newChannelName, setNewChannelName] = useState("");
         const [newChannelType, setNewChannelType] = useState("Text");
-        const [loading, setLoading] = useState(true);
+        const [loading, setLoading] = useState(false);
         const [syncing, setSyncing] = useState(false);
         const [meLoading, setMeLoading] = useState(false);
         const [text, setText] = useState("");
         const [guilds, setGuilds] = useState([]);
         const [selectedGuild, setSelectedGuild] = useState(null);
         const [selectedChannel, setSelectedChannel] = useState(null);
+        const [activeVoiceChannel, setActiveVoiceChannel] = useState(null);
+        const [voiceStatus, setVoiceStatus] = useState("disconnected");
+        const [voiceConnectingChannelId, setVoiceConnectingChannelId] = useState(null);
+        const [voiceUserIds, setVoiceUserIds] = useState([]);
+        const [voiceUserProfiles, setVoiceUserProfiles] = useState([]);
+        const [voiceSpeakingUserIds, setVoiceSpeakingUserIds] = useState([]);
+        const [voiceError, setVoiceError] = useState("");
 
+        const [inviteCode, setInviteCode] = useState("");
+       
         const [messages, setMessages] = useState([]);
         const [hasOlderMessages, setHasOlderMessages] = useState(true);
         const [loadingOlder, setLoadingOlder] = useState(false);
 
         const msgScrollRef = useRef(null);
         const scrollToBottom = useRef(false);
+        const voiceConnectionRef = useRef(null);
         
+        function getVoiceConnection() {
+          const container = document.getElementById("voice-audio-streams");
+          const ConnectionClass = window.voiceConnection ?? window.VoiceClient;
+
+          if (!container) throw new Error("Voice audio container is missing.");
+          if (!ConnectionClass) throw new Error("Voice client library failed to load.");
+
+          if (!voiceConnectionRef.current) {
+            const connection = new ConnectionClass(container);
+
+            const handleJoin = (users) => {
+              const joinedUsers = (users ?? []).filter(Boolean);
+              setVoiceUserIds(prev => Array.from(new Set([...prev, ...joinedUsers])));
+              setVoiceStatus(connection.getStatus());
+            };
+
+            const handleLeave = (users) => {
+              const leavingUsers = new Set((users ?? []).filter(Boolean));
+              setVoiceUserIds(prev => prev.filter(userID => !leavingUsers.has(userID)));
+
+              const status = connection.getStatus();
+              setVoiceStatus(status);
+              if (status === "disconnected") {
+                setActiveVoiceChannel(null);
+              }
+            };
+
+            if (connection.onUserJoin) connection.onUserJoin(handleJoin);
+            else if (connection.onUserConnect) connection.onUserConnect(handleJoin);
+
+            if (connection.onUserLeave) connection.onUserLeave(handleLeave);
+            else if (connection.onUserDisconnect) connection.onUserDisconnect(handleLeave);
+
+            if (connection.onUserSpeaking) {
+              connection.onUserSpeaking((users) => {
+                setVoiceSpeakingUserIds((users ?? []).filter(Boolean));
+              });
+            }
+
+            voiceConnectionRef.current = connection;
+          }
+
+          return voiceConnectionRef.current;
+        }
+
+        function leaveVoiceChannel() {
+          voiceConnectionRef.current?.disconnect();
+          setActiveVoiceChannel(null);
+          setVoiceConnectingChannelId(null);
+          setVoiceStatus("disconnected");
+          setVoiceUserIds([]);
+          setVoiceUserProfiles([]);
+          setVoiceSpeakingUserIds([]);
+          setVoiceError("");
+        }
+
+        function selectGuild(guild) {
+          if (selectedGuild?._id && selectedGuild._id !== guild?._id) {
+            leaveVoiceChannel();
+          }
+
+          setSelectedGuild(guild);
+          setSelectedChannel(getFirstTextChannel(guild));
+        }
+
+        async function connectToVoiceChannel(channel) {
+          if (!selectedGuild?._id || !channel?._id || getChannelType(channel) !== "Voice") return;
+
+          setVoiceError("");
+          setVoiceConnectingChannelId(channel._id);
+          setVoiceStatus("connecting");
+          setVoiceUserIds([]);
+          setVoiceUserProfiles([]);
+          setVoiceSpeakingUserIds([]);
+
+          try {
+            const token = await apiPostChannelToken(selectedGuild._id, channel._id);
+
+            if (token === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
+
+            const connection = getVoiceConnection();
+            await connection.connect(token);
+
+            const status = connection.getStatus();
+            setVoiceStatus(status);
+
+            if (status !== "connected") {
+              setActiveVoiceChannel(null);
+              throw new Error("Voice connection failed. Check microphone permission and try again.");
+            }
+
+            setActiveVoiceChannel(channel);
+          } catch (e) {
+            setVoiceError(e?.message ?? String(e));
+            setVoiceStatus(voiceConnectionRef.current?.getStatus?.() ?? "disconnected");
+          } finally {
+            setVoiceConnectingChannelId(null);
+          }
+        }
+
 
         async function loadGuilds() {
           try {
@@ -623,7 +881,7 @@
             if (data.length > 0) {
               const firstGuild = data[0];
               setSelectedGuild(firstGuild);
-              setSelectedChannel(firstGuild.channels?.[0] ?? null);
+              setSelectedChannel(getFirstTextChannel(firstGuild));
             }
           } catch (e) {
             setStatus({ kind: "error", msg: e?.message ?? String(e) });
@@ -644,6 +902,7 @@
           if (!selectedGuild?._id || !selectedChannel?._id) {
             setMessages([]);
             setHasOlderMessages(true);
+            setLoading(false);
             return;
           }
 
@@ -772,6 +1031,31 @@
           })();
         }, [setStatus, setUser]);
 
+        useEffect(() => {
+          let cancelled = false;
+
+          (async () => {
+            const profiles = await Promise.all(voiceUserIds.map(async (userID) => {
+              return {
+                _id: userID,
+                friendlyName: await getFriendlyNameForUser(userID),
+              };
+            }));
+
+            if (!cancelled) setVoiceUserProfiles(profiles);
+          })();
+
+          return () => {
+            cancelled = true;
+          };
+        }, [voiceUserIds]);
+
+        useEffect(() => {
+          return () => {
+            voiceConnectionRef.current?.disconnect();
+          };
+        }, []);
+
         // Reset message state when switching channels
         useEffect(() => {
           setMessages([]);
@@ -879,6 +1163,7 @@
 
             setNewGuildName("");
             setShowCreateGuild(false);
+            leaveVoiceChannel();
             setGuilds(prev => [...prev, created]);
             setSelectedGuild(created);
             setSelectedChannel(null);
@@ -910,9 +1195,33 @@
             };
 
             setSelectedGuild(updatedGuild);
-            setSelectedChannel(created);
+            if (created.type === "Text") {
+              setSelectedChannel(created);
+            }
             setGuilds(prev => prev.map(g => g._id === updatedGuild._id ? updatedGuild : g));
             setStatus({ kind: "idle", msg: "" });
+          } catch (e) {
+            setStatus({ kind: "error", msg: e?.message ?? String(e) });
+          }
+        }
+        
+
+        async function acceptInvite() {
+          const code = inviteCode.trim();
+          if (!code) return;
+
+          try {
+            const result = await apiAcceptInvite(code);
+
+            if (result === null) {
+              setStatus({ kind: "error", msg: "Not authenticated. Please sign in again." });
+              window.location.hash = "#/login";
+              return;
+            }
+
+            setInviteCode("");
+            setStatus({ kind: "idle", msg: "Invite accepted." });
+            await loadGuilds();
           } catch (e) {
             setStatus({ kind: "error", msg: e?.message ?? String(e) });
           }
@@ -925,6 +1234,7 @@
               </div>
               <button
                 onClick=${async () => {
+                  leaveVoiceChannel();
                   setUser(null);
                   setStatus({ kind: "idle", msg: "" });
                   window.location.hash = "#/login";
@@ -956,17 +1266,44 @@
                     <button onClick=${createGuild}>Save</button>
                   </div>
                 `}
+                <div className="spacer"></div>
 
+
+                <div className="sidebar-title">Invite</div>
+
+                ${selectedGuild?.invites?.length > 0 && html`
+                  <div className="item">
+                    <div className="muted">Guild invite code</div>
+                    <div className="invite-code">${selectedGuild.invites[0]}</div>
+                  </div>
+                `}
+
+                ${selectedGuild && (!selectedGuild.invites || selectedGuild.invites.length === 0) && html`
+                  <div className="muted">
+                    No invite code found for this guild.
+                  </div>
+                `}
+
+                <div className="spacer"></div>
+
+                <input
+                  style=${{ width: "100%", boxSizing: "border-box" }}
+                  placeholder="Invite code..."
+                  value=${inviteCode}
+                  onInput=${(e) => setInviteCode(e.target.value)}
+                  onKeyDown=${(e) => { if (e.key === "Enter") acceptInvite(); }}
+                />
+
+                <div className="spacer"></div>
+
+                <button onClick=${acceptInvite}>Accept</button>
                 <div className="spacer"></div>
                 <ul className="list">
                   ${guilds.map(g => html`
                     <li
                       key=${g._id}
                       className=${`item sidebar-item ${selectedGuild?._id === g._id ? "active" : ""}`}
-                      onClick=${() => {
-                        setSelectedGuild(g);
-                        setSelectedChannel(g.channels?.[0] ?? null);
-                      }}
+                      onClick=${() => selectGuild(g)}
                     >
                       ${g.friendlyName}
                     </li>
@@ -1009,14 +1346,30 @@
 
                 <div className="spacer"></div>
 
+              <div className="channel-list-title">Text</div>
               <ul className="list">
-                ${(selectedGuild?.channels ?? []).map(c => html`
+                ${(selectedGuild?.channels ?? []).filter(c => getChannelType(c) === "Text").map(c => html`
                   <li
                     key=${c._id}
                     className=${`item sidebar-item ${selectedChannel?._id === c._id ? "active" : ""}`}
                     onClick=${() => setSelectedChannel(c)}
                   >
-                    # ${c.friendlyName}
+                    <span className="channel-prefix">Text</span>${c.friendlyName}
+                  </li>
+                `)}
+              </ul>
+
+              <div className="channel-list-title">Voice</div>
+              <ul className="list">
+                ${(selectedGuild?.channels ?? []).filter(c => getChannelType(c) === "Voice").map(c => html`
+                  <li
+                    key=${c._id}
+                    className=${`item sidebar-item ${activeVoiceChannel?._id === c._id ? "active" : ""}`}
+                    onClick=${() => connectToVoiceChannel(c)}
+                  >
+                    <span className="channel-prefix">
+                      ${voiceConnectingChannelId === c._id ? "Join" : "Voice"}
+                    </span>${c.friendlyName}
                   </li>
                 `)}
               </ul>
@@ -1027,11 +1380,47 @@
                   ${selectedChannel ? `# ${selectedChannel.friendlyName}` : "Select a channel"}
                 </div>
 
+                <div className="voice-strip">
+                  <div className="row" style=${{ justifyContent: "space-between" }}>
+                    <div>
+                      <div className="sidebar-title">Voice</div>
+                      <div className="muted">
+                        ${activeVoiceChannel
+                          ? `${activeVoiceChannel.friendlyName} (${voiceStatus})`
+                          : voiceStatus === "connecting"
+                            ? "Connecting..."
+                            : "Not connected"}
+                      </div>
+                    </div>
+                    <button
+                      onClick=${leaveVoiceChannel}
+                      disabled=${voiceStatus === "disconnected" && !activeVoiceChannel}
+                    >
+                      Leave Voice
+                    </button>
+                  </div>
+                  ${voiceError && html`<div className="error">${voiceError}</div>`}
+                  <div className="voice-users">
+                    ${voiceUserProfiles.length > 0
+                      ? voiceUserProfiles.map(profile => html`
+                          <div key=${profile._id} className="voice-user">
+                            <span className=${`voice-user-icon ${voiceSpeakingUserIds.includes(profile._id) ? "speaking" : ""}`}>
+                              ${getInitials(profile.friendlyName)}
+                            </span>
+                            <span className="voice-user-name">${profile.friendlyName}</span>
+                          </div>
+                        `)
+                      : html`<span className="muted">No voice users</span>`}
+                  </div>
+                </div>
+
                 <div className="messages-scroll" ref=${msgScrollRef}>
-                  ${loading && messages.length === 0
-                    ? html`<div className="muted">Loading messages…</div>`
+                  ${!selectedChannel
+                    ? html`<div className="muted">Select a text channel to view messages.</div>`
+                    : loading && messages.length === 0
+                    ? html`<div className="muted">Loading messages...</div>`
                     : html`
-                        ${loadingOlder ? html`<div className="muted">Loading older messages…</div>` : ""}
+                        ${loadingOlder ? html`<div className="muted">Loading older messages...</div>` : ""}
                         ${!hasOlderMessages && messages.length > 0 ? html`<div className="muted">Beginning of channel history</div>` : ""}
                         <ul className="list">
                           ${messages.map(m => html`
@@ -1047,7 +1436,7 @@
                 <div className="row">
                   <input
                     style=${{ flex: 1, minWidth: "240px" }}
-                    placeholder=${selectedChannel ? `Message #${selectedChannel.friendlyName}` : "Select a channel first"}
+                    placeholder=${selectedChannel ? `Message #${selectedChannel.friendlyName}` : "Select a text channel first"}
                     value=${text}
                     disabled=${!selectedChannel}
                     onInput=${(e) => setText(e.target.value)}

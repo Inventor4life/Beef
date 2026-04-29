@@ -4,6 +4,8 @@ import { requireAuth, requireScope } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 import { generateSnowflake } from './snowflake.js';
 import { generateServiceToken, getLocalUrl, getServiceAgent } from './auth.js';
+import jwt from "jsonwebtoken"
+import type { SignOptions } from 'jsonwebtoken';
 
 const MAX_GUILD_NAME_LENGTH = 32;
 const MAX_CHANNEL_NAME_LENGTH = 32;
@@ -41,6 +43,16 @@ type ServiceCallResult =
 type InviteCallResult =
     | { ok: true; inviteCode: string }
     | { ok: false; status: number; message: string };
+
+
+// Voice JWT creation options
+const secretKey: string = process.env.JWT_SECRET!; // sha256 of SuperSecretAuthKey
+const options: SignOptions = {
+  issuer: "myAuthService",
+  audience: "beef-live",
+  algorithm: 'HS256',
+  expiresIn: Number(process.env.JWT_EXPIRY) // in seconds.
+}
 
 const router = Router();
 let serviceToken = generateServiceToken();
@@ -634,5 +646,67 @@ router.get('/guilds/:guildID/channels/:channelID/messages', requireAuth, require
         res.status(500).json({ error: "failed to fetch messages" });
     }
 });
+
+router.post('/guilds/:guildID/channels/:channelID/token', requireAuth, requireScope("user"), async (req: Request, res: Response) => {
+    if (!isDbConnected()) {
+        res.status(503).json({ error: "database not connected" });
+        return;
+    }
+    const guildIDUnpadded = req.params.guildID
+    const channelIDUnpadded = req.params.channelID;
+    if(!guildIDUnpadded || !channelIDUnpadded 
+      || typeof guildIDUnpadded !== 'string'
+      || typeof channelIDUnpadded !== 'string') { // Not sure if this is needed, we can't (to my knowledge) have /token present without both of these
+        res.status(400).json({ error: "Missing or malformed guildId/channelId"})
+        return
+    }
+
+    const channelID = channelIDUnpadded.padStart(20, "0");
+    const guildID = guildIDUnpadded.padStart(20, "0");
+
+    // Pasted
+    try {
+        // find guild
+        const guild = await getCollection<Guild>("guilds").findOne({ _id: guildID });
+        // 404 if no guild
+        if (!guild) {
+            res.status(404).json({ error: "guild not found" });
+            return;
+        }
+
+        // Check if user is in guild
+        if(!guild.members.find(u => u === res.locals.user?.sub)) {
+            res.status(403).json({ error: "user not in guild"})
+            return;
+        }
+
+        // find channel in guild
+        const channel = guild.channels.find(c => c._id === channelID);
+        // 404 if no channel
+        if (!channel) {
+            res.status(404).json({ error: "channel not found" });
+            return;
+        }
+
+        let channel_type = "Text"
+
+        if(channel.type && channel.type === "Voice") {
+            channel_type = "Voice"
+        }
+
+        const token = jwt.sign({
+            "sub":res.locals.user?.sub,
+            "type":channel_type,
+            "channel":channelID,
+            "guild":guildID
+        }, secretKey, options)
+        res.status(201).json({ token: token });
+        
+    } catch (err) {
+        console.log("Failed to create token", err);
+        res.status(500).json({ error: "failed to create token" });
+    }
+
+})
 
 export default router;

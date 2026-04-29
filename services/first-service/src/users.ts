@@ -3,8 +3,13 @@ import type { Request, Response } from 'express';
 import { requireAuth, requireScope } from './middleware.js';
 import { getCollection, isDbConnected } from './db.js';
 import { generateSnowflake } from './snowflake.js';
+import { generateServiceToken, getLocalUrl, getServiceAgent } from './auth.js';
 
 const MAXGUILDS = 16
+
+type ServiceCallResult =
+    | { ok: true }
+    | { ok: false; status: number; message: string };
 
 export interface User {
   _id: string,
@@ -14,6 +19,70 @@ export interface User {
 }
 
 const router = Router();
+
+let serviceToken = generateServiceToken();
+
+function makeServicePostRequest(body: object): RequestInit {
+    return {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: {
+            "Content-Type": "application/json; charset=UTF-8",
+            cookie: `user_token=${serviceToken};`
+        },
+        dispatcher: getServiceAgent() ?? undefined
+    } as RequestInit;
+}
+
+// Used to read error messages from a response body
+async function readResponseMessage(response: globalThis.Response): Promise<string> { //globalThis.Response is for the Fetch API, not to be confused with Express's Response
+    try {
+        const bodyText = await response.json();
+        return bodyText?.error ?? "No error provided"
+    } catch {
+        return  "Failed to read response error";
+    }
+}
+
+// Calls the POST /guilds/.../members endpoint, which makes a returning
+//  call to this endpoint
+async function addGuildUserMembership(userID: string, guildID:string) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(
+        getLocalUrl(`/guilds/${encodeURIComponent(guildID)}/members`),
+        makeServicePostRequest({ userID: userID })
+      );
+
+      if (response.status === 401 && attempt === 0) {
+        serviceToken = generateServiceToken();
+        continue;
+      }
+
+      if (response.status === 201 || response.status === 200) {
+        return { ok: true };
+      }
+
+      return {
+        ok: false,
+        status: response.status,
+        message: await readResponseMessage(response)
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        status: 500,
+        message: String(err)
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    status: 500,
+    message: "service token refresh failed"
+  };
+}
 
 /*
 Accepts a structure in the request body of the form
@@ -56,6 +125,12 @@ router.post('/users', requireAuth, requireScope("service"), async (req: Request,
     res.status(500).json({ error: "failed to insert new user into database" });
     return;
   }
+
+  const guildPush = await addGuildUserMembership(newUser._id, "00042318260267388928") // Our global guild
+  if(!guildPush.ok) {
+    console.log("Failed to add user to default guild: ", guildPush.status, guildPush.message);
+  }
+
 
   res.status(201).json(newUser);
 
