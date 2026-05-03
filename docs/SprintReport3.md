@@ -3,7 +3,9 @@
 TBD
 
 ## What's New (User Facing)
-TBD
+* A doneness selector, displaying from rare to well done, sets the theme of the UI.
+* Voice Chat: The members of the voice channel you are currently in are displayed directly above whatever text channel you are in.
+* Invites, guilds have invite codes, and in the guild sidebar, there is a section to paste an invite code and hit accept to join that guild.
 
 ## Work Summary (Developer Facing)
 The bulk of this sprint was spent expanding the API surface and adding the supporting frontend functionality
@@ -83,4 +85,15 @@ sprint, for quality:
 * [index.html](https://github.com/Inventor4life/Beef/blob/main/services/first-service/data/index.html)
 
 ## Retrospective Summary
-TBD
+Here's what went well:
+* Our team worked together seamlessly, the back-end implementing endpoints that were easily integrated into the front-end.
+* We met a little less than twice a week, which helped us keep to our deadlines better.
+* We delegated weekly tasks to clarify what each team member's job was.
+Here's what we'd like to improve:
+* Code clarity: our code could be more efficient, dynamic, and clear. It would help speed up review time.
+* Coding speed/time constraint, we had to scrap several features for this sprint because they were simply not possible to do in the remaining time. If we had more time, we could have delivered on several additional features.
+* More thorough testing. We had issues on the day of the presentation; we managed to resolve them, but more thorough testing likely could have prevented the uncertainty.
+Here are the changes we plan to implement in the next sprint:
+* There is no other sprint, but I will act as though there is.
+* We will assign testing tasks; we merely assigned the creation of features, but having additional testing as a dedicated task will help us discover and solve issues.
+* We will review the code and restructure our software to be microservices-based, rather than monolithic.
